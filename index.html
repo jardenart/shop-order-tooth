@@ -385,15 +385,16 @@ function locMove(id,dir){
 }
 
 /* ---------- 2. 業者 ---------- */
-let vForm = {closedWd:[], cutoffOn:false};
+let vForm = {editId:null, name:"", closedWd:[], cutoffOn:false, cutoff:"14:00"};
 function vVendor(){
   const chips = WD.map((w,i)=>
     `<button class="${vForm.closedWd.includes(i)?'on':''}" onclick="vWd(${i})">${w}</button>`).join("");
+  const editing = !!vForm.editId;
   const list = master.vendors.map(v=>{
     const cw = v.closedWd.length ? "定休："+v.closedWd.map(i=>WD[i]).join("・") : "定休なし";
     const co = v.cutoffOn ? "〆切 "+v.cutoff : "〆切なし";
     const ir = v.irregular.length ? `<br>臨時休業：${v.irregular.map(fmtJP).join("、")}` : "";
-    return `<div class="item">
+    return `<div class="item" style="${vForm.editId===v.id?'background:var(--gold-soft);border-radius:8px;padding-left:8px;padding-right:4px':''}">
       <div class="grow">
         <span class="name">${esc(v.name)}</span>
         <div class="meta">${cw} ／ ${co}${ir}</div>
@@ -403,13 +404,15 @@ function vVendor(){
           ${v.irregular.length?`<button class="btn ghost narrow" style="padding:6px 10px;font-size:.72rem" onclick="irClear('${v.id}')">臨時休業クリア</button>`:""}
         </div>
       </div>
+      <button class="icon" style="color:var(--gold);font-weight:700" onclick="venEdit('${v.id}')">編集</button>
       <button class="icon del" onclick="venDel('${v.id}')">削除</button>
     </div>`;
   }).join("");
   return `<div class="card">
-    <h2>業者を登録</h2>
+    <h2>${editing?'業者を編集中：'+esc(master.vendors.find(x=>x.id===vForm.editId)?.name||''):'業者を登録'}</h2>
     <label class="f">業者名</label>
-    <input type="text" id="venName" placeholder="例：○○水産" maxlength="30">
+    <input type="text" id="venName" placeholder="例：○○水産" maxlength="30"
+      value="${esc(vForm.name)}" oninput="vForm.name=this.value">
     <label class="f">定休日（タップで選択）</label>
     <div class="chips">${chips}</div>
     <label class="f">発注〆切時間</label>
@@ -418,9 +421,12 @@ function vVendor(){
         <option value="0" ${!vForm.cutoffOn?'selected':''}>無</option>
         <option value="1" ${vForm.cutoffOn?'selected':''}>有</option>
       </select>
-      ${vForm.cutoffOn?'<input type="time" id="venCut" value="14:00">':''}
+      ${vForm.cutoffOn?`<input type="time" id="venCut" value="${vForm.cutoff}" onchange="vForm.cutoff=this.value">`:''}
     </div>
-    <div style="margin-top:14px"><button class="btn gold" onclick="venAdd()">業者を追加</button></div>
+    <div style="margin-top:14px" class="row">
+      <button class="btn gold" onclick="venSave()">${editing?'この内容で更新':'業者を追加'}</button>
+      ${editing?'<button class="btn ghost narrow" onclick="venCancel()">キャンセル</button>':''}
+    </div>
     <div class="hint">〆切時間を過ぎた発注は翌営業日受注扱いになり、納品日が後ろへずれます。</div>
   </div>
   <div class="card"><h2>登録済み業者（${master.vendors.length}）</h2>${list||'<div class="empty">まだ登録がありません</div>'}</div>`;
@@ -430,13 +436,33 @@ function vWd(i){
   p>=0 ? vForm.closedWd.splice(p,1) : vForm.closedWd.push(i);
   render();
 }
-function venAdd(){
-  const name = document.getElementById("venName").value.trim();
-  if(!name) return;
-  const cutoff = vForm.cutoffOn ? (document.getElementById("venCut")?.value || "14:00") : "";
-  master.vendors.push({id:uid(),name,closedWd:[...vForm.closedWd],irregular:[],cutoffOn:vForm.cutoffOn,cutoff});
-  vForm = {closedWd:[],cutoffOn:false};
+function venSave(){
+  const name = vForm.name.trim();
+  if(!name){ alert("業者名を入力してください"); return; }
+  if(vForm.editId){
+    const v = master.vendors.find(x=>x.id===vForm.editId);
+    if(v){
+      v.name = name;
+      v.closedWd = [...vForm.closedWd];
+      v.cutoffOn = vForm.cutoffOn;
+      v.cutoff = vForm.cutoffOn ? (vForm.cutoff||"14:00") : "";
+      // 臨時休業日はそのまま保持
+    }
+  }else{
+    master.vendors.push({id:uid(),name,closedWd:[...vForm.closedWd],irregular:[],cutoffOn:vForm.cutoffOn,cutoff:vForm.cutoffOn?(vForm.cutoff||"14:00"):""});
+  }
+  vForm = {editId:null,name:"",closedWd:[],cutoffOn:false,cutoff:"14:00"};
   save(); render();
+}
+function venEdit(id){
+  const v = master.vendors.find(x=>x.id===id);
+  if(!v) return;
+  vForm = {editId:id, name:v.name, closedWd:[...v.closedWd], cutoffOn:v.cutoffOn, cutoff:v.cutoff||"14:00"};
+  render(); window.scrollTo(0,0);
+}
+function venCancel(){
+  vForm = {editId:null,name:"",closedWd:[],cutoffOn:false,cutoff:"14:00"};
+  render();
 }
 function venDel(id){
   if(master.products.some(p=>p.vendorId===id)){ alert("この業者を使用中の商品があります。先に商品側を変更してください。"); return; }
@@ -454,79 +480,102 @@ function irClear(id){
 }
 
 /* ---------- 3. 商品 ---------- */
+let pForm = {editId:null, name:"", locId:"", vendorId:"", unit:"", d2:false, lot:1, lotUnit:"cs"};
 function vProd(){
   if(!master.locations.length || !master.vendors.length){
     return `<div class="card"><div class="empty">先に「保管場所」と「業者」を登録してください</div></div>`;
   }
-  const locOpts = master.locations.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join("");
-  const venOpts = master.vendors.map(v=>`<option value="${v.id}">${esc(v.name)}</option>`).join("");
+  const editing = !!pForm.editId;
+  const locOpts = master.locations.map(l=>`<option value="${l.id}" ${pForm.locId===l.id?'selected':''}>${esc(l.name)}</option>`).join("");
+  const venOpts = master.vendors.map(v=>`<option value="${v.id}" ${pForm.vendorId===v.id?'selected':''}>${esc(v.name)}</option>`).join("");
   const list = master.products.map(p=>{
     const loc = master.locations.find(l=>l.id===p.locId);
     const ven = master.vendors.find(v=>v.id===p.vendorId);
-    return `<div class="item">
+    return `<div class="item" style="${pForm.editId===p.id?'background:var(--gold-soft);border-radius:8px;padding-left:8px;padding-right:4px':''}">
       <div class="grow">
         <span class="name">${esc(p.name)}</span>
         ${p.d2?'<span class="tag d2">D2</span>':''}
         <div class="meta">${esc(loc?.name||"—")} ／ ${esc(ven?.name||"—")} ／ 単位：${esc(p.unit||"個")}${(p.lot||1)>1?` ／ ロット：1${esc(p.lotUnit||"cs")}=${p.lot}${esc(p.unit||"個")}`:""}</div>
-        <div class="row" style="margin-top:6px;align-items:center">
-          <span style="flex:0 0 auto;font-size:.68rem;color:var(--muted)">ロット入数</span>
-          <input type="number" min="1" step="1" value="${p.lot||1}" style="padding:6px;flex:0 0 70px;text-align:center"
-            onchange="lotSet('${p.id}','lot',this.value)">
-          <span style="flex:0 0 auto;font-size:.68rem;color:var(--muted)">単位名</span>
-          <input type="text" value="${esc(p.lotUnit||"cs")}" maxlength="10" style="padding:6px;flex:0 0 60px;text-align:center"
-            onchange="lotSet('${p.id}','lotUnit',this.value)">
-        </div>
       </div>
+      <button class="icon" style="color:var(--gold);font-weight:700" onclick="prodEdit('${p.id}')">編集</button>
       <button class="icon del" onclick="prodDel('${p.id}')">削除</button>
     </div>`;
   }).join("");
   return `<div class="card">
-    <h2>商品を登録</h2>
+    <h2>${editing?'商品を編集中：'+esc(master.products.find(x=>x.id===pForm.editId)?.name||''):'商品を登録'}</h2>
     <label class="f">商品名</label>
-    <input type="text" id="pName" placeholder="例：真鯛（ラウンド）" maxlength="40">
+    <input type="text" placeholder="例：真鯛（ラウンド）" maxlength="40"
+      value="${esc(pForm.name)}" oninput="pForm.name=this.value">
     <div class="row">
-      <div><label class="f">保管場所</label><select id="pLoc">${locOpts}</select></div>
-      <div><label class="f">業者</label><select id="pVen">${venOpts}</select></div>
+      <div><label class="f">保管場所</label><select onchange="pForm.locId=this.value">${locOpts}</select></div>
+      <div><label class="f">業者</label><select onchange="pForm.vendorId=this.value">${venOpts}</select></div>
     </div>
     <div class="row">
-      <div><label class="f">発注単位（表示用）</label><input type="text" id="pUnit" placeholder="個 / 本 / kg / ケース" maxlength="10"></div>
+      <div><label class="f">発注単位（表示用）</label><input type="text" placeholder="個 / 本 / kg / ケース" maxlength="10"
+        value="${esc(pForm.unit)}" oninput="pForm.unit=this.value"></div>
       <div><label class="f">D2商品</label>
-        <select id="pD2"><option value="0">通常（翌日納品）</option><option value="1">D2（受注2日後納品）</option></select>
+        <select onchange="pForm.d2=this.value==='1'">
+          <option value="0" ${!pForm.d2?'selected':''}>通常（翌日納品）</option>
+          <option value="1" ${pForm.d2?'selected':''}>D2（受注2日後納品）</option>
+        </select>
       </div>
     </div>
     <div class="row">
-      <div><label class="f">発注ロット入数（1ロットあたり）</label><input type="number" id="pLot" min="1" step="1" placeholder="1（バラ発注可）"></div>
-      <div><label class="f">ロット単位名</label><input type="text" id="pLotUnit" placeholder="cs / 箱 / 袋" maxlength="10"></div>
+      <div><label class="f">発注ロット入数（1ロットあたり）</label><input type="number" min="1" step="1" placeholder="1（バラ発注可）"
+        value="${pForm.lot>1?pForm.lot:''}" oninput="pForm.lot=Math.max(1,Math.floor(Number(this.value)||1))"></div>
+      <div><label class="f">ロット単位名</label><input type="text" placeholder="cs / 箱 / 袋" maxlength="10"
+        value="${esc(pForm.lotUnit)}" oninput="pForm.lotUnit=this.value"></div>
     </div>
-    <div style="margin-top:14px"><button class="btn gold" onclick="prodAdd()">商品を追加</button></div>
-    <div class="hint">ケース納品→バラ保管の商品はロット入数を設定。例：1cs20pcなら「20」「cs」。在庫カウント・適正在庫はバラ（pc）のまま、発注数だけロット換算で表示されます。登録後、「適正在庫」タブで在庫基準を設定してください。</div>
+    <div style="margin-top:14px" class="row">
+      <button class="btn gold" onclick="prodSave()">${editing?'この内容で更新':'商品を追加'}</button>
+      ${editing?'<button class="btn ghost narrow" onclick="prodCancel()">キャンセル</button>':''}
+    </div>
+    <div class="hint">ケース納品→バラ保管の商品はロット入数を設定。例：1cs20pcなら「20」「cs」。在庫カウント・適正在庫はバラ（pc）のまま、発注数だけロット換算で表示されます。適正在庫の数値は「適正在庫」タブで設定してください（編集しても消えません）。</div>
   </div>
   <div class="card"><h2>登録済み商品（${master.products.length}）</h2>${list||'<div class="empty">まだ登録がありません</div>'}</div>`;
 }
-function prodAdd(){
-  const name = document.getElementById("pName").value.trim();
-  if(!name) return;
-  master.products.push({
-    id:uid(), name,
-    locId: document.getElementById("pLoc").value,
-    vendorId: document.getElementById("pVen").value,
-    unit: document.getElementById("pUnit").value.trim() || "個",
-    d2: document.getElementById("pD2").value === "1",
-    lot: Math.max(1, Math.floor(Number(document.getElementById("pLot").value)||1)),
-    lotUnit: document.getElementById("pLotUnit").value.trim() || "cs",
-    stk:{ow:0,oe:0,bw:0,be:0}
-  });
+function prodSave(){
+  const name = pForm.name.trim();
+  if(!name){ alert("商品名を入力してください"); return; }
+  const locId = pForm.locId || master.locations[0]?.id;
+  const vendorId = pForm.vendorId || master.vendors[0]?.id;
+  if(pForm.editId){
+    const p = master.products.find(x=>x.id===pForm.editId);
+    if(p){
+      p.name = name; p.locId = locId; p.vendorId = vendorId;
+      p.unit = pForm.unit.trim() || "個";
+      p.d2 = pForm.d2;
+      p.lot = Math.max(1, Number(pForm.lot)||1);
+      p.lotUnit = pForm.lotUnit.trim() || "cs";
+      // 適正在庫(stk)と発注表の入力履歴はそのまま保持
+    }
+  }else{
+    master.products.push({
+      id:uid(), name, locId, vendorId,
+      unit: pForm.unit.trim() || "個",
+      d2: pForm.d2,
+      lot: Math.max(1, Number(pForm.lot)||1),
+      lotUnit: pForm.lotUnit.trim() || "cs",
+      stk:{ow:0,oe:0,bw:0,be:0}
+    });
+  }
+  pForm = {editId:null,name:"",locId:"",vendorId:"",unit:"",d2:false,lot:1,lotUnit:"cs"};
   save(); render();
+}
+function prodEdit(id){
+  const p = master.products.find(x=>x.id===id);
+  if(!p) return;
+  pForm = {editId:id, name:p.name, locId:p.locId, vendorId:p.vendorId,
+    unit:p.unit||"", d2:!!p.d2, lot:Math.max(1,Number(p.lot)||1), lotUnit:p.lotUnit||"cs"};
+  render(); window.scrollTo(0,0);
+}
+function prodCancel(){
+  pForm = {editId:null,name:"",locId:"",vendorId:"",unit:"",d2:false,lot:1,lotUnit:"cs"};
+  render();
 }
 function prodDel(id){
+  if(!confirm("この商品を削除しますか？（適正在庫設定も消えます）")) return;
   master.products = master.products.filter(p=>p.id!==id); save(); render();
-}
-function lotSet(pid,key,val){
-  const p = master.products.find(x=>x.id===pid);
-  if(!p) return;
-  if(key==="lot") p.lot = Math.max(1, Math.floor(Number(val)||1));
-  else p.lotUnit = String(val).trim() || "cs";
-  save(); render();
 }
 
 /* ---------- 4. 繁忙期・曜日 ---------- */
