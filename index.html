@@ -627,6 +627,11 @@ function vBulkCard(){
   const onCount = bulk.rows.filter(r=>r.include&&r.name.trim()).length;
   return `<div class="card">
     <h2>一括登録：内容を確認（${bulk.rows.length}行）</h2>
+    <div class="row" style="margin-bottom:8px">
+      <button class="btn ghost narrow" style="padding:8px 14px;font-size:.78rem" onclick="bulkCheckAll(true)">すべて ☑</button>
+      <button class="btn ghost narrow" style="padding:8px 14px;font-size:.78rem" onclick="bulkCheckAll(false)">すべて解除</button>
+      <span style="flex:1;text-align:right;font-size:.72rem;color:var(--muted);align-self:center">選択中 ${onCount}件</span>
+    </div>
     <div class="applypanel">
       <div style="font-size:.72rem;font-weight:700;color:#7A5E22;margin-bottom:6px">チェックした行にまとめて適用</div>
       <div class="row">
@@ -667,6 +672,10 @@ function bulkParse(){
       d2:false, unit:"個", lot:1, lotUnit:"cs"
     });
   }
+  render();
+}
+function bulkCheckAll(on){
+  bulk.rows.forEach(r=>{ r.include = on; });
   render();
 }
 function bulkApply(){
