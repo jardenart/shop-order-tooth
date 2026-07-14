@@ -116,6 +116,27 @@ button.icon.del{color:var(--shu)}
 .stk td:first-child{font-weight:600;font-size:.8rem;max-width:110px}
 .stk input{padding:8px 4px;text-align:center}
 
+/* ===== bulk import ===== */
+textarea.paste{
+  width:100%;min-height:140px;padding:10px;border:1px dashed var(--gold);
+  border-radius:8px;font-size:16px;font-family:inherit;background:#FDFCFA;color:var(--ink);
+  resize:vertical;
+}
+textarea.paste:focus{outline:2px solid var(--gold)}
+.brow{border-bottom:1px solid var(--line);padding:8px 0}
+.brow:last-child{border-bottom:none}
+.brow .l1{display:flex;align-items:center;gap:8px}
+.brow .l1 input[type=checkbox]{width:22px;height:22px;accent-color:var(--gold);flex:0 0 auto}
+.brow .l1 input[type=text]{flex:1;padding:7px 8px;font-size:.85rem}
+.brow .l2{display:flex;gap:6px;margin-top:6px;padding-left:30px}
+.brow .l2 select{padding:7px 4px;font-size:.76rem;flex:1;min-width:0}
+.brow.off{opacity:.4}
+.applypanel{
+  background:var(--gold-soft);border-radius:8px;padding:10px;margin-bottom:10px;
+}
+.applypanel .row{margin-top:6px}
+.applypanel .row:first-child{margin-top:0}
+
 /* ===== order sheet ===== */
 .osheet-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .osheet-head input[type=date]{flex:1;min-width:150px}
@@ -532,6 +553,7 @@ function vProd(){
     </div>
     <div class="hint">ケース納品→バラ保管の商品はロット入数を設定。例：1cs20pcなら「20」「cs」。在庫カウント・適正在庫はバラ（pc）のまま、発注数だけロット換算で表示されます。適正在庫の数値は「適正在庫」タブで設定してください（編集しても消えません）。</div>
   </div>
+  ${vBulkCard()}
   <div class="card"><h2>登録済み商品（${master.products.length}）</h2>${list||'<div class="empty">まだ登録がありません</div>'}</div>`;
 }
 function prodSave(){
@@ -572,6 +594,111 @@ function prodEdit(id){
 function prodCancel(){
   pForm = {editId:null,name:"",locId:"",vendorId:"",unit:"",d2:false,lot:1,lotUnit:"cs"};
   render();
+}
+
+/* ---------- 商品一括登録（Excel貼り付け） ---------- */
+let bulk = {rows:[]};
+function vBulkCard(){
+  if(!bulk.rows.length){
+    return `<div class="card">
+      <h2>一括登録（Excelから貼り付け）</h2>
+      <textarea class="paste" id="bulkText" placeholder="Excelの商品名の列をコピーして、ここに貼り付け&#10;（1行＝1商品。複数列を貼った場合は左端の列を商品名として使います）&#10;&#10;例：&#10;真鯛（ラウンド）&#10;オリーブオイル 1L&#10;冷凍エビ 20pc"></textarea>
+      <div style="margin-top:10px"><button class="btn gold" onclick="bulkParse()">取り込む</button></div>
+    </div>`;
+  }
+  const locOpts = sel => master.locations.map(l=>`<option value="${l.id}" ${sel===l.id?'selected':''}>${esc(l.name)}</option>`).join("");
+  const venOpts = sel => master.vendors.map(v=>`<option value="${v.id}" ${sel===v.id?'selected':''}>${esc(v.name)}</option>`).join("");
+  const rows = bulk.rows.map((r,i)=>`
+    <div class="brow ${r.include?'':'off'}">
+      <div class="l1">
+        <input type="checkbox" ${r.include?'checked':''} onchange="bulk.rows[${i}].include=this.checked;render()">
+        <input type="text" value="${esc(r.name)}" maxlength="40" oninput="bulk.rows[${i}].name=this.value">
+        ${r.dup?'<span class="tag shu">登録済と重複</span>':''}
+      </div>
+      <div class="l2">
+        <select onchange="bulk.rows[${i}].locId=this.value">${locOpts(r.locId)}</select>
+        <select onchange="bulk.rows[${i}].vendorId=this.value">${venOpts(r.vendorId)}</select>
+        <select onchange="bulk.rows[${i}].d2=this.value==='1'" style="flex:0 0 84px">
+          <option value="0" ${!r.d2?'selected':''}>通常</option>
+          <option value="1" ${r.d2?'selected':''}>D2</option>
+        </select>
+      </div>
+    </div>`).join("");
+  const onCount = bulk.rows.filter(r=>r.include&&r.name.trim()).length;
+  return `<div class="card">
+    <h2>一括登録：内容を確認（${bulk.rows.length}行）</h2>
+    <div class="applypanel">
+      <div style="font-size:.72rem;font-weight:700;color:#7A5E22;margin-bottom:6px">チェックした行にまとめて適用</div>
+      <div class="row">
+        <select id="baLoc">${locOpts(null)}</select>
+        <select id="baVen">${venOpts(null)}</select>
+      </div>
+      <div class="row">
+        <select id="baD2" style="flex:0 0 110px"><option value="">D2:変更なし</option><option value="0">通常</option><option value="1">D2</option></select>
+        <input type="text" id="baUnit" placeholder="単位（例:個）" maxlength="10">
+        <input type="number" id="baLot" min="1" placeholder="ロット入数" style="flex:0 0 90px">
+        <button class="btn narrow" style="padding:9px 12px;font-size:.76rem" onclick="bulkApply()">↓ 反映</button>
+      </div>
+    </div>
+    ${rows}
+    <div class="row" style="margin-top:12px">
+      <button class="btn gold" onclick="bulkRegister()">${onCount}件をまとめて登録</button>
+      <button class="btn ghost narrow" onclick="bulk={rows:[]};render()">やり直す</button>
+    </div>
+    <div class="hint">重複マークの行は初期状態でチェックが外れています。単位・ロットは上の「反映」でまとめて設定するか、登録後に各商品の編集から個別に変更できます。</div>
+  </div>`;
+}
+function bulkParse(){
+  const text = document.getElementById("bulkText").value;
+  const names = text.split(/\r?\n/)
+    .map(line => line.split("\t")[0].trim())
+    .filter(s => s.length>0);
+  if(!names.length){ alert("商品名が読み取れませんでした"); return; }
+  const seen = new Set();
+  const existing = new Set(master.products.map(p=>p.name));
+  bulk.rows = [];
+  for(const name of names){
+    if(seen.has(name)) continue; // 貼り付け内の重複は1つに
+    seen.add(name);
+    const dup = existing.has(name);
+    bulk.rows.push({
+      name, dup, include: !dup,
+      locId: master.locations[0]?.id, vendorId: master.vendors[0]?.id,
+      d2:false, unit:"個", lot:1, lotUnit:"cs"
+    });
+  }
+  render();
+}
+function bulkApply(){
+  const loc = document.getElementById("baLoc").value;
+  const ven = document.getElementById("baVen").value;
+  const d2 = document.getElementById("baD2").value;
+  const unit = document.getElementById("baUnit").value.trim();
+  const lot = Number(document.getElementById("baLot").value);
+  bulk.rows.forEach(r=>{
+    if(!r.include) return;
+    r.locId = loc; r.vendorId = ven;
+    if(d2!=="") r.d2 = d2==="1";
+    if(unit) r.unit = unit;
+    if(lot>=1) r.lot = Math.floor(lot);
+  });
+  render();
+}
+function bulkRegister(){
+  const targets = bulk.rows.filter(r=>r.include && r.name.trim());
+  if(!targets.length){ alert("登録対象がありません"); return; }
+  targets.forEach(r=>{
+    master.products.push({
+      id:uid(), name:r.name.trim(),
+      locId:r.locId, vendorId:r.vendorId,
+      unit:r.unit||"個", d2:r.d2,
+      lot:Math.max(1,Number(r.lot)||1), lotUnit:r.lotUnit||"cs",
+      stk:{ow:0,oe:0,bw:0,be:0}
+    });
+  });
+  bulk = {rows:[]};
+  save(); render();
+  alert(targets.length+"件を登録しました。「適正在庫」タブで在庫基準を設定してください。");
 }
 function prodDel(id){
   if(!confirm("この商品を削除しますか？（適正在庫設定も消えます）")) return;
