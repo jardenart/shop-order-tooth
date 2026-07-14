@@ -647,15 +647,15 @@ function vBulkCard(){
       <span style="flex:1;text-align:right;font-size:.72rem;color:var(--muted);align-self:center">選択中 ${onCount}件</span>
     </div>
     <div class="applypanel">
-      <div style="font-size:.72rem;font-weight:700;color:#7A5E22;margin-bottom:6px">チェックした行にまとめて適用</div>
+      <div style="font-size:.72rem;font-weight:700;color:#7A5E22;margin-bottom:6px">チェックした行にまとめて適用（「変更しない」の項目はそのまま）</div>
       <div class="row">
-        <select id="baLoc">${locOpts(null)}</select>
-        <select id="baVen">${venOpts(null)}</select>
+        <select id="baLoc"><option value="">保管場所：変更しない</option>${locOpts(null)}</select>
+        <select id="baVen"><option value="">業者：変更しない</option>${venOpts(null)}</select>
       </div>
       <div class="row">
-        <select id="baD2" style="flex:0 0 110px"><option value="">D2:変更なし</option><option value="0">通常</option><option value="1">D2</option></select>
-        <input type="text" id="baUnit" placeholder="単位（例:個）" maxlength="10">
-        <input type="number" id="baLot" min="1" placeholder="ロット入数" style="flex:0 0 90px">
+        <select id="baD2" style="flex:0 0 130px"><option value="">D2：変更しない</option><option value="0">通常</option><option value="1">D2</option></select>
+        <input type="text" id="baUnit" placeholder="単位（空欄=変更しない）" maxlength="10">
+        <input type="number" id="baLot" min="1" placeholder="ロット（空欄=変更しない）" style="flex:0 0 110px">
         <button class="btn narrow" style="padding:9px 12px;font-size:.76rem" onclick="bulkApply()">↓ 反映</button>
       </div>
     </div>
@@ -700,7 +700,8 @@ function bulkApply(){
   const lot = Number(document.getElementById("baLot").value);
   bulk.rows.forEach(r=>{
     if(!r.include) return;
-    r.locId = loc; r.vendorId = ven;
+    if(loc) r.locId = loc;
+    if(ven) r.vendorId = ven;
     if(d2!=="") r.d2 = d2==="1";
     if(unit) r.unit = unit;
     if(lot>=1) r.lot = Math.floor(lot);
