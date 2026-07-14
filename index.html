@@ -231,15 +231,30 @@ let ui = { tab:"order", orderDate: todayStr(), group:"loc", onlyNeed:false, open
 let memOnly = false;
 
 /* ============================================================
-   永続化
+   永続化（Claude環境=window.storage / ブラウザ配信=localStorage）
 ============================================================ */
+const hasWS = typeof window.storage !== "undefined" && window.storage && typeof window.storage.get === "function";
+async function stGet(key){
+  if(hasWS){
+    try{ const r = await window.storage.get(key); return r ? r.value : null; }
+    catch(e){ return null; }
+  }
+  try{ return localStorage.getItem(key); }
+  catch(e){ memOnly = true; return null; }
+}
+async function stSet(key, val){
+  if(hasWS){
+    try{ await window.storage.set(key, val); return true; }
+    catch(e){ memOnly = true; return false; }
+  }
+  try{ localStorage.setItem(key, val); return true; }
+  catch(e){ memOnly = true; return false; }
+}
 async function load(){
-  try{
-    const m = await window.storage.get("hacchu:master").catch(()=>null);
-    if(m) master = Object.assign(master, JSON.parse(m.value));
-    const s = await window.storage.get("hacchu:sheets").catch(()=>null);
-    if(s) sheets = JSON.parse(s.value);
-  }catch(e){ memOnly = true; }
+  const m = await stGet("hacchu:master");
+  if(m){ try{ master = Object.assign(master, JSON.parse(m)); }catch(e){} }
+  const s = await stGet("hacchu:sheets");
+  if(s){ try{ sheets = JSON.parse(s); }catch(e){} }
   setSaved();
   render();
 }
@@ -251,15 +266,14 @@ function save(){
     // シートは直近60日分のみ保持
     const keys = Object.keys(sheets).sort().slice(-60);
     const trimmed = {}; keys.forEach(k=>trimmed[k]=sheets[k]); sheets = trimmed;
-    try{
-      await window.storage.set("hacchu:master", JSON.stringify(master));
-      await window.storage.set("hacchu:sheets", JSON.stringify(sheets));
-      setSaved();
-    }catch(e){ memOnly=true; setSaved(); }
+    const ok1 = await stSet("hacchu:master", JSON.stringify(master));
+    const ok2 = await stSet("hacchu:sheets", JSON.stringify(sheets));
+    if(ok1 && ok2) memOnly = false;
+    setSaved();
   }, 500);
 }
 function setSaved(){
-  setBar(memOnly ? "※このプレビューでは保存されません（本番環境で自動保存されます）" : "自動保存済み ✓");
+  setBar(memOnly ? "⚠ この環境では保存できません。「保存/復元」タブでバックアップを取ってください" : "自動保存済み ✓（この端末のブラウザに保存）");
 }
 function setBar(t){ document.getElementById("savebar").textContent = t; }
 
