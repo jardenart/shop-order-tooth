@@ -331,6 +331,21 @@ function targetStock(p, dateStr){
   const mult = Number(master.wdMult[wdOf(dateStr)]||1);
   return base * mult;
 }
+// 過去の発注済☑のうち、まだ届いていない入荷予定を集計
+// 対象：発注日より後〜今回の納品日までに届く分
+function pendingArrivals(pid, orderDate, delivery){
+  let pc = 0; const details = [];
+  for(const [d, sh] of Object.entries(sheets)){
+    if(d >= orderDate) continue;              // 当日以降のシートは対象外
+    const o = sh.orders && sh.orders[pid];
+    if(o && o.pc > 0 && o.delivery > orderDate && o.delivery <= delivery){
+      pc += o.pc;
+      details.push({date:o.delivery, pc:o.pc});
+    }
+  }
+  details.sort((a,b)=>a.date<b.date?-1:1);
+  return {pc, details};
+}
 // 発注数計算
 function calcOrder(p, orderDate, currentStock){
   const v = master.vendors.find(x=>x.id===p.vendorId);
@@ -344,8 +359,10 @@ function calcOrder(p, orderDate, currentStock){
     interim += t; interimDays.push({date:d, t});
     d = addDays(d,1);
   }
+  // 発注済☑分の入荷予定を差し引く（D2の二重発注防止）
+  const pending = pendingArrivals(p.id, orderDate, delivery);
   const need = target + interim;
-  const qty = currentStock==null ? null : Math.max(0, Math.ceil(need - currentStock));
+  const qty = currentStock==null ? null : Math.max(0, Math.ceil(need - currentStock - pending.pc));
   // ロット換算：発注はロット単位、納品数はロット×入数
   const lot = Math.max(1, Number(p.lot)||1);
   let lots = null, deliveredPc = null;
@@ -354,7 +371,7 @@ function calcOrder(p, orderDate, currentStock){
     else { lots = qty; deliveredPc = qty; }
   }
   const delayed = delivery > addDays(orderDate, p.d2 ? 2 : 1);
-  return {qty, lots, deliveredPc, lot, need, target, interim, interimDays, delivery, accept, delayed, cutoffPassed, vendor:v};
+  return {qty, lots, deliveredPc, lot, need, target, interim, interimDays, pending, delivery, accept, delayed, cutoffPassed, vendor:v};
 }
 
 /* ============================================================
@@ -856,7 +873,9 @@ function vOrder(){
         ? ` ＋ 中日消費 ${r.interimDays.map(d=>fmtJP(d.date)+"分"+trim1(d.t)).join("、")}`
         : "";
       const lotTxt = isLot && r.qty!=null && r.qty>0 ? ` → 必要${r.qty}${esc(p.unit||"個")}を1${esc(p.lotUnit||"cs")}${r.lot}${esc(p.unit||"個")}で換算` : "";
-      const calcTxt = `適正在庫 ${trim1(r.target)}（${fmtJP(r.delivery)}納品時点）${interimTxt} − 現在庫 ${cur==null?"未入力":trim1(Number(cur))} → 切上げ${lotTxt}`;
+      const pendTxt = r.pending.pc>0
+        ? ` − 入荷予定 ${r.pending.details.map(x=>fmtJP(x.date)+"着"+x.pc).join("、")}` : "";
+      const calcTxt = `適正在庫 ${trim1(r.target)}（${fmtJP(r.delivery)}納品時点）${interimTxt}${pendTxt} − 現在庫 ${cur==null?"未入力":trim1(Number(cur))} → 切上げ${lotTxt}`;
       const warnTxt = [
         r.cutoffPassed ? "〆切超過→翌営業日受注" : "",
         r.delayed ? "休業の影響で納品後ろ倒し" : ""
@@ -893,6 +912,7 @@ function vOrder(){
             </div>
             <div class="dline" id="d-${p.id}">
               受注 ${fmtJP(r.accept)} → 納品 <b>${fmtJP(r.delivery)}</b>
+              ${r.pending.pc>0?`<span class="tag ok">入荷予定 ${r.pending.pc}${esc(p.unit||"個")}</span>`:""}
               ${warnTxt?`<span class="warn"> ⚠ ${warnTxt}</span>`:""}
             </div>
           </div>
@@ -944,6 +964,16 @@ function stkStep(pid, d){
 function ordChk(pid, on){
   const sheet = sheetOf(ui.orderDate);
   sheet.ordered[pid] = on;
+  if(!sheet.orders) sheet.orders = {};
+  if(on){
+    // ☑した時点の発注内容（納品pc数・納品日）を記録 → 以降の日の計算で入荷予定として差し引く
+    const p = master.products.find(x=>x.id===pid);
+    const cur = sheet.stocks[pid];
+    const r = calcOrder(p, ui.orderDate, cur==null?null:Number(cur));
+    sheet.orders[pid] = {pc: r.deliveredPc||0, delivery: r.delivery};
+  }else{
+    delete sheet.orders[pid];
+  }
   save(); render();
 }
 // 行単位で再計算（フォーカスを保つ）
@@ -969,7 +999,9 @@ function updateRow(pid){
     const interimTxt = r.interimDays.length
       ? ` ＋ 中日消費 ${r.interimDays.map(d=>fmtJP(d.date)+"分"+trim1(d.t)).join("、")}` : "";
     const lotTxt = isLot && r.qty!=null && r.qty>0 ? ` → 必要${r.qty}${p.unit||"個"}を1${p.lotUnit||"cs"}${r.lot}${p.unit||"個"}で換算` : "";
-    c.textContent = `適正在庫 ${trim1(r.target)}（${fmtJP(r.delivery)}納品時点）${interimTxt} − 現在庫 ${cur==null?"未入力":trim1(Number(cur))} → 切上げ${lotTxt}`;
+    const pendTxt = r.pending.pc>0
+      ? ` − 入荷予定 ${r.pending.details.map(x=>fmtJP(x.date)+"着"+x.pc).join("、")}` : "";
+    c.textContent = `適正在庫 ${trim1(r.target)}（${fmtJP(r.delivery)}納品時点）${interimTxt}${pendTxt} − 現在庫 ${cur==null?"未入力":trim1(Number(cur))} → 切上げ${lotTxt}`;
   }
 }
 
