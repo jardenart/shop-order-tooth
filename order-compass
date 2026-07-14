@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>発注アプリ</title>
+<style>
+:root{
+  --sumi:#23211E;
+  --kinari:#F5F3ED;
+  --white:#FFFFFF;
+  --gold:#B08A3C;
+  --gold-soft:#F3EBDA;
+  --shu:#C2452F;
+  --shu-soft:#F9E8E4;
+  --ink:#2A2822;
+  --muted:#8A8578;
+  --line:#E4E0D6;
+  --ok:#3E7A4E;
+  --ok-soft:#E6F0E8;
+  --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{font-size:16px}
+body{
+  font-family:"Hiragino Kaku Gothic ProN","Meiryo UI",Meiryo,system-ui,sans-serif;
+  background:var(--kinari);color:var(--ink);
+  padding-bottom:80px;
+}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+/* ===== header ===== */
+header{
+  background:var(--sumi);color:#F5F3ED;
+  padding:14px 16px 10px;
+  position:sticky;top:0;z-index:20;
+}
+header h1{font-size:1.05rem;font-weight:700;letter-spacing:.14em}
+header .sub{font-size:.68rem;color:#B8B2A2;letter-spacing:.2em;margin-top:2px}
+nav{
+  display:flex;gap:4px;overflow-x:auto;
+  background:var(--sumi);padding:0 10px 10px;
+  position:sticky;top:54px;z-index:19;
+  scrollbar-width:none;
+}
+nav::-webkit-scrollbar{display:none}
+nav button{
+  flex:0 0 auto;border:1px solid #4A463E;background:transparent;color:#CFC9BB;
+  padding:8px 13px;border-radius:999px;font-size:.8rem;cursor:pointer;white-space:nowrap;
+  font-family:inherit;
+}
+nav button.on{background:var(--gold);border-color:var(--gold);color:#1E1B15;font-weight:700}
+
+main{max-width:760px;margin:0 auto;padding:16px 14px}
+
+/* ===== cards ===== */
+.card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+.card h2{font-size:.92rem;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.card h2::before{content:"";width:4px;height:16px;background:var(--gold);border-radius:2px}
+.hint{font-size:.74rem;color:var(--muted);line-height:1.6;margin-top:6px}
+.empty{font-size:.82rem;color:var(--muted);padding:14px 4px;text-align:center;line-height:1.7}
+
+/* ===== forms ===== */
+label.f{display:block;font-size:.74rem;color:var(--muted);margin:10px 0 4px;font-weight:600}
+input[type=text],input[type=date],input[type=time],input[type=number],select{
+  width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;
+  font-size:16px;font-family:inherit;background:#FDFCFA;color:var(--ink);
+}
+input:focus,select:focus{outline:2px solid var(--gold);outline-offset:0;border-color:var(--gold)}
+.row{display:flex;gap:8px;align-items:flex-end}
+.row>*{flex:1}
+.row>.narrow{flex:0 0 auto}
+button.btn{
+  padding:10px 16px;border-radius:8px;border:none;cursor:pointer;
+  font-size:.85rem;font-weight:700;font-family:inherit;
+  background:var(--sumi);color:#F5F3ED;
+}
+button.btn.gold{background:var(--gold);color:#1E1B15}
+button.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:500}
+button.btn:active{opacity:.75}
+button.icon{
+  background:transparent;border:none;cursor:pointer;color:var(--muted);
+  font-size:.95rem;padding:6px 8px;font-family:inherit;
+}
+button.icon.del{color:var(--shu)}
+
+/* ===== list items ===== */
+.item{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 4px;border-bottom:1px solid var(--line);font-size:.88rem;
+}
+.item:last-child{border-bottom:none}
+.item .grow{flex:1;min-width:0}
+.item .name{font-weight:600}
+.item .meta{font-size:.72rem;color:var(--muted);margin-top:2px;line-height:1.5}
+.tag{
+  display:inline-block;font-size:.66rem;padding:2px 7px;border-radius:999px;
+  background:var(--gold-soft);color:#7A5E22;font-weight:700;margin-right:4px;
+}
+.tag.d2{background:var(--sumi);color:#F0EBDD}
+.tag.shu{background:var(--shu-soft);color:var(--shu)}
+.tag.ok{background:var(--ok-soft);color:var(--ok)}
+
+/* ===== weekday chips ===== */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{
+  width:40px;height:40px;border-radius:50%;border:1px solid var(--line);
+  background:#FDFCFA;font-size:.85rem;cursor:pointer;font-family:inherit;color:var(--ink);
+}
+.chips button.on{background:var(--sumi);color:#F5F3ED;border-color:var(--sumi);font-weight:700}
+
+/* ===== stock table ===== */
+.stk{width:100%;border-collapse:collapse;font-size:.8rem}
+.stk th{font-size:.68rem;color:var(--muted);font-weight:600;padding:6px 4px;text-align:center;border-bottom:1px solid var(--line)}
+.stk td{padding:6px 3px;border-bottom:1px solid var(--line)}
+.stk td:first-child{font-weight:600;font-size:.8rem;max-width:110px}
+.stk input{padding:8px 4px;text-align:center}
+
+/* ===== order sheet ===== */
+.osheet-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.osheet-head input[type=date]{flex:1;min-width:150px}
+.toggle{
+  display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;
+}
+.toggle button{
+  padding:9px 12px;border:none;background:#FDFCFA;font-size:.76rem;cursor:pointer;font-family:inherit;color:var(--muted);
+}
+.toggle button.on{background:var(--sumi);color:#F5F3ED;font-weight:700}
+.grp-title{
+  font-size:.78rem;font-weight:700;letter-spacing:.08em;color:#6B6455;
+  margin:18px 2px 8px;display:flex;align-items:center;gap:8px;
+}
+.grp-title::after{content:"";flex:1;height:1px;background:var(--line)}
+.prow{
+  background:var(--white);border:1px solid var(--line);border-radius:var(--radius);
+  padding:12px;margin-bottom:8px;
+}
+.prow.done{opacity:.5}
+.prow .top{display:flex;align-items:flex-start;gap:8px}
+.prow .pname{font-weight:700;font-size:.95rem;flex:1;line-height:1.4}
+.prow .badges{margin-top:3px}
+.prow .body{display:flex;gap:10px;margin-top:10px;align-items:stretch}
+.stepper{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.stepper button{
+  width:42px;height:42px;border-radius:8px;border:1px solid var(--line);
+  background:#FDFCFA;font-size:1.2rem;cursor:pointer;color:var(--ink);font-family:inherit;
+}
+.stepper button:active{background:var(--gold-soft)}
+.stepper input{width:64px;text-align:center;font-size:1.05rem;font-weight:700;padding:9px 2px}
+.stepper .lbl{font-size:.62rem;color:var(--muted);text-align:center;margin-bottom:3px;font-weight:600}
+.result{
+  flex:1;background:var(--kinari);border-radius:8px;padding:8px 10px;
+  display:flex;flex-direction:column;justify-content:center;min-width:0;
+}
+.result .qline{display:flex;align-items:baseline;gap:6px}
+.result .q{font-size:1.7rem;font-weight:800;color:var(--ink);line-height:1}
+.result .q.zero{color:#B9B3A4}
+.result .q.need{color:var(--gold)}
+.result .u{font-size:.7rem;color:var(--muted)}
+.result .dline{font-size:.7rem;color:var(--muted);margin-top:4px;line-height:1.5}
+.result .dline b{color:var(--ink)}
+.result .warn{color:var(--shu);font-weight:700}
+.chk{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  flex:0 0 auto;font-size:.62rem;color:var(--muted);font-weight:600;
+}
+.chk input{width:26px;height:26px;accent-color:var(--gold);cursor:pointer}
+.calc{font-size:.68rem;color:var(--muted);margin-top:8px;line-height:1.5;border-top:1px dashed var(--line);padding-top:6px}
+.notice{
+  background:var(--shu-soft);color:var(--shu);border-radius:8px;
+  padding:9px 12px;font-size:.76rem;font-weight:600;margin-bottom:10px;line-height:1.6;
+}
+.notice.gold{background:var(--gold-soft);color:#7A5E22}
+.savebar{
+  position:fixed;bottom:0;left:0;right:0;background:rgba(35,33,30,.95);
+  color:#CFC9BB;font-size:.7rem;text-align:center;padding:6px;z-index:30;
+  backdrop-filter:blur(4px);letter-spacing:.08em;
+}
+.summary{display:flex;gap:8px;margin-bottom:12px}
+.sumbox{flex:1;background:var(--white);border:1px solid var(--line);border-radius:var(--radius);padding:10px;text-align:center}
+.sumbox .v{font-size:1.4rem;font-weight:800}
+.sumbox .k{font-size:.64rem;color:var(--muted);margin-top:2px;font-weight:600}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <h1>発注アプリ</h1>
+  <div class="sub">ORDER MANAGEMENT</div>
+</header>
+<nav id="nav"></nav>
+<main id="main"></main>
+<div class="savebar" id="savebar">読み込み中…</div>
+
+<script>
+/* ============================================================
+   状態
+============================================================ */
+const WD = ["日","月","火","水","木","金","土"];
+let master = {
+  locations: [],            // {id,name}
+  vendors: [],              // {id,name,closedWd:[..],irregular:[dates],cutoffOn:bool,cutoff:"14:00"}
+  products: [],             // {id,name,locId,vendorId,d2,unit,stk:{ow,oe,bw,be}}
+  busyPeriods: [],          // {id,start,end}
+  wdMult: {0:1,1:1,2:1,3:1,4:1,5:1,6:1},
+  weekendDays: [0,6]
+};
+let sheets = {};            // {"YYYY-MM-DD": {stocks:{pid:num}, ordered:{pid:bool}}}
+let ui = { tab:"order", orderDate: todayStr(), group:"loc", onlyNeed:false, openCalc:{} };
+let memOnly = false;
+
+/* ============================================================
+   永続化
+============================================================ */
+async function load(){
+  try{
+    const m = await window.storage.get("hacchu:master").catch(()=>null);
+    if(m) master = Object.assign(master, JSON.parse(m.value));
+    const s = await window.storage.get("hacchu:sheets").catch(()=>null);
+    if(s) sheets = JSON.parse(s.value);
+  }catch(e){ memOnly = true; }
+  setSaved();
+  render();
+}
+let saveTimer=null;
+function save(){
+  setBar("保存中…");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    // シートは直近60日分のみ保持
+    const keys = Object.keys(sheets).sort().slice(-60);
+    const trimmed = {}; keys.forEach(k=>trimmed[k]=sheets[k]); sheets = trimmed;
+    try{
+      await window.storage.set("hacchu:master", JSON.stringify(master));
+      await window.storage.set("hacchu:sheets", JSON.stringify(sheets));
+      setSaved();
+    }catch(e){ memOnly=true; setSaved(); }
+  }, 500);
+}
+function setSaved(){
+  setBar(memOnly ? "※このプレビューでは保存されません（本番環境で自動保存されます）" : "自動保存済み ✓");
+}
+function setBar(t){ document.getElementById("savebar").textContent = t; }
+
+/* ============================================================
+   日付ユーティリティ
+============================================================ */
+function todayStr(){ return toStr(new Date()); }
+function toStr(d){
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function toDate(s){ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
+function addDays(s,n){ const d=toDate(s); d.setDate(d.getDate()+n); return toStr(d); }
+function wdOf(s){ return toDate(s).getDay(); }
+function fmtJP(s){ const d=toDate(s); return (d.getMonth()+1)+"/"+d.getDate()+"("+WD[d.getDay()]+")"; }
+
+/* ============================================================
+   発注ロジック
+============================================================ */
+function vendorClosed(v, dateStr){
+  if(!v) return false;
+  if(v.closedWd.includes(wdOf(dateStr))) return true;
+  if(v.irregular.includes(dateStr)) return true;
+  return false;
+}
+// 受注日：発注日当日。〆切超過(当日のみ判定) or 業者休業日なら翌営業日へ
+function acceptDate(v, orderDate){
+  let a = orderDate;
+  let cutoffPassed = false;
+  if(v && v.cutoffOn && v.cutoff && orderDate === todayStr()){
+    const now = new Date();
+    const [h,m] = v.cutoff.split(":").map(Number);
+    if(now.getHours()*60+now.getMinutes() > h*60+m){ a = addDays(a,1); cutoffPassed = true; }
+  }
+  let guard = 0;
+  while(v && vendorClosed(v,a) && guard++ < 30) a = addDays(a,1);
+  return {accept:a, cutoffPassed};
+}
+// 納品日：通常=受注翌営業日 / D2=受注2日後(休業ならさらに翌営業日)
+function deliveryDate(v, orderDate, d2){
+  const {accept, cutoffPassed} = acceptDate(v, orderDate);
+  let d = addDays(accept, d2 ? 2 : 1);
+  let guard = 0;
+  while(v && vendorClosed(v,d) && guard++ < 30) d = addDays(d,1);
+  return {delivery:d, accept, cutoffPassed};
+}
+function isBusy(dateStr){
+  return master.busyPeriods.some(p=> p.start && p.end && p.start<=dateStr && dateStr<=p.end);
+}
+function isWeekend(dateStr){ return master.weekendDays.includes(wdOf(dateStr)); }
+// 指定日の適正在庫
+function targetStock(p, dateStr){
+  const s = p.stk || {};
+  const key = isBusy(dateStr) ? (isWeekend(dateStr)?"be":"bw") : (isWeekend(dateStr)?"oe":"ow");
+  const base = Number(s[key]||0);
+  const mult = Number(master.wdMult[wdOf(dateStr)]||1);
+  return base * mult;
+}
+// 発注数計算
+function calcOrder(p, orderDate, currentStock){
+  const v = master.vendors.find(x=>x.id===p.vendorId);
+  const {delivery, accept, cutoffPassed} = deliveryDate(v, orderDate, p.d2);
+  const target = targetStock(p, delivery);
+  // 中日（翌日〜納品前日）の想定消費 = 各日の適正在庫
+  let interim = 0; const interimDays=[];
+  let d = addDays(orderDate,1);
+  while(d < delivery){
+    const t = targetStock(p,d);
+    interim += t; interimDays.push({date:d, t});
+    d = addDays(d,1);
+  }
+  const need = target + interim;
+  const qty = currentStock==null ? null : Math.max(0, Math.ceil(need - currentStock));
+  // ロット換算：発注はロット単位、納品数はロット×入数
+  const lot = Math.max(1, Number(p.lot)||1);
+  let lots = null, deliveredPc = null;
+  if(qty!=null){
+    if(lot>1){ lots = Math.ceil(qty/lot); deliveredPc = lots*lot; }
+    else { lots = qty; deliveredPc = qty; }
+  }
+  const delayed = delivery > addDays(orderDate, p.d2 ? 2 : 1);
+  return {qty, lots, deliveredPc, lot, need, target, interim, interimDays, delivery, accept, delayed, cutoffPassed, vendor:v};
+}
+
+/* ============================================================
+   描画
+============================================================ */
+const TABS = [
+  ["order","📋 発注表"],
+  ["loc","保管場所"],
+  ["vendor","業者"],
+  ["prod","商品"],
+  ["busy","繁忙期・曜日"],
+  ["stock","適正在庫"],
+  ["backup","保存/復元"]
+];
+function render(){
+  const nav = document.getElementById("nav");
+  nav.innerHTML = TABS.map(([k,l])=>
+    `<button class="${ui.tab===k?'on':''}" onclick="go('${k}')">${l}</button>`).join("");
+  const m = document.getElementById("main");
+  m.innerHTML = ({order:vOrder,loc:vLoc,vendor:vVendor,prod:vProd,busy:vBusy,stock:vStock,backup:vBackup})[ui.tab]();
+}
+function go(t){ ui.tab=t; render(); window.scrollTo(0,0); }
+function esc(s){ return String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+/* ---------- 1. 保管場所 ---------- */
+function vLoc(){
+  const list = master.locations.map((l,i)=>`
+    <div class="item">
+      <div class="grow"><span class="name">${i+1}. ${esc(l.name)}</span></div>
+      <button class="icon" onclick="locMove('${l.id}',-1)" title="上へ">▲</button>
+      <button class="icon" onclick="locMove('${l.id}',1)" title="下へ">▼</button>
+      <button class="icon del" onclick="locDel('${l.id}')">削除</button>
+    </div>`).join("");
+  return `<div class="card">
+    <h2>保管場所（${master.locations.length}/30）</h2>
+    <div class="row">
+      <input type="text" id="locName" placeholder="例：冷蔵庫A、ドライ棚2" maxlength="30">
+      <button class="btn gold narrow" onclick="locAdd()">追加</button>
+    </div>
+    <div class="hint">在庫カウントの動線順に並べると発注表が数えやすくなります。▲▼で並び替え。</div>
+  </div>
+  <div class="card">${list || '<div class="empty">まだ登録がありません</div>'}</div>`;
+}
+function locAdd(){
+  const el = document.getElementById("locName");
+  const name = el.value.trim();
+  if(!name) return;
+  if(master.locations.length>=30){ alert("保管場所は最大30か所です"); return; }
+  master.locations.push({id:uid(),name});
+  save(); render();
+}
+function locDel(id){
+  if(master.products.some(p=>p.locId===id)){ alert("この保管場所を使用中の商品があります。先に商品側を変更してください。"); return; }
+  master.locations = master.locations.filter(l=>l.id!==id); save(); render();
+}
+function locMove(id,dir){
+  const i = master.locations.findIndex(l=>l.id===id);
+  const j = i+dir;
+  if(j<0||j>=master.locations.length) return;
+  [master.locations[i],master.locations[j]]=[master.locations[j],master.locations[i]];
+  save(); render();
+}
+
+/* ---------- 2. 業者 ---------- */
+let vForm = {closedWd:[], cutoffOn:false};
+function vVendor(){
+  const chips = WD.map((w,i)=>
+    `<button class="${vForm.closedWd.includes(i)?'on':''}" onclick="vWd(${i})">${w}</button>`).join("");
+  const list = master.vendors.map(v=>{
+    const cw = v.closedWd.length ? "定休："+v.closedWd.map(i=>WD[i]).join("・") : "定休なし";
+    const co = v.cutoffOn ? "〆切 "+v.cutoff : "〆切なし";
+    const ir = v.irregular.length ? `<br>臨時休業：${v.irregular.map(fmtJP).join("、")}` : "";
+    return `<div class="item">
+      <div class="grow">
+        <span class="name">${esc(v.name)}</span>
+        <div class="meta">${cw} ／ ${co}${ir}</div>
+        <div class="row" style="margin-top:6px">
+          <input type="date" id="ir-${v.id}" style="padding:6px">
+          <button class="btn ghost narrow" style="padding:6px 10px;font-size:.72rem" onclick="irAdd('${v.id}')">臨時休業を追加</button>
+          ${v.irregular.length?`<button class="btn ghost narrow" style="padding:6px 10px;font-size:.72rem" onclick="irClear('${v.id}')">臨時休業クリア</button>`:""}
+        </div>
+      </div>
+      <button class="icon del" onclick="venDel('${v.id}')">削除</button>
+    </div>`;
+  }).join("");
+  return `<div class="card">
+    <h2>業者を登録</h2>
+    <label class="f">業者名</label>
+    <input type="text" id="venName" placeholder="例：○○水産" maxlength="30">
+    <label class="f">定休日（タップで選択）</label>
+    <div class="chips">${chips}</div>
+    <label class="f">発注〆切時間</label>
+    <div class="row">
+      <select id="venCutOn" class="narrow" style="flex:0 0 100px" onchange="vForm.cutoffOn=this.value==='1';render()">
+        <option value="0" ${!vForm.cutoffOn?'selected':''}>無</option>
+        <option value="1" ${vForm.cutoffOn?'selected':''}>有</option>
+      </select>
+      ${vForm.cutoffOn?'<input type="time" id="venCut" value="14:00">':''}
+    </div>
+    <div style="margin-top:14px"><button class="btn gold" onclick="venAdd()">業者を追加</button></div>
+    <div class="hint">〆切時間を過ぎた発注は翌営業日受注扱いになり、納品日が後ろへずれます。</div>
+  </div>
+  <div class="card"><h2>登録済み業者（${master.vendors.length}）</h2>${list||'<div class="empty">まだ登録がありません</div>'}</div>`;
+}
+function vWd(i){
+  const p = vForm.closedWd.indexOf(i);
+  p>=0 ? vForm.closedWd.splice(p,1) : vForm.closedWd.push(i);
+  render();
+}
+function venAdd(){
+  const name = document.getElementById("venName").value.trim();
+  if(!name) return;
+  const cutoff = vForm.cutoffOn ? (document.getElementById("venCut")?.value || "14:00") : "";
+  master.vendors.push({id:uid(),name,closedWd:[...vForm.closedWd],irregular:[],cutoffOn:vForm.cutoffOn,cutoff});
+  vForm = {closedWd:[],cutoffOn:false};
+  save(); render();
+}
+function venDel(id){
+  if(master.products.some(p=>p.vendorId===id)){ alert("この業者を使用中の商品があります。先に商品側を変更してください。"); return; }
+  master.vendors = master.vendors.filter(v=>v.id!==id); save(); render();
+}
+function irAdd(id){
+  const el = document.getElementById("ir-"+id);
+  if(!el.value) return;
+  const v = master.vendors.find(x=>x.id===id);
+  if(!v.irregular.includes(el.value)) v.irregular.push(el.value);
+  v.irregular.sort(); save(); render();
+}
+function irClear(id){
+  master.vendors.find(x=>x.id===id).irregular = []; save(); render();
+}
+
+/* ---------- 3. 商品 ---------- */
+function vProd(){
+  if(!master.locations.length || !master.vendors.length){
+    return `<div class="card"><div class="empty">先に「保管場所」と「業者」を登録してください</div></div>`;
+  }
+  const locOpts = master.locations.map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join("");
+  const venOpts = master.vendors.map(v=>`<option value="${v.id}">${esc(v.name)}</option>`).join("");
+  const list = master.products.map(p=>{
+    const loc = master.locations.find(l=>l.id===p.locId);
+    const ven = master.vendors.find(v=>v.id===p.vendorId);
+    return `<div class="item">
+      <div class="grow">
+        <span class="name">${esc(p.name)}</span>
+        ${p.d2?'<span class="tag d2">D2</span>':''}
+        <div class="meta">${esc(loc?.name||"—")} ／ ${esc(ven?.name||"—")} ／ 単位：${esc(p.unit||"個")}${(p.lot||1)>1?` ／ ロット：1${esc(p.lotUnit||"cs")}=${p.lot}${esc(p.unit||"個")}`:""}</div>
+        <div class="row" style="margin-top:6px;align-items:center">
+          <span style="flex:0 0 auto;font-size:.68rem;color:var(--muted)">ロット入数</span>
+          <input type="number" min="1" step="1" value="${p.lot||1}" style="padding:6px;flex:0 0 70px;text-align:center"
+            onchange="lotSet('${p.id}','lot',this.value)">
+          <span style="flex:0 0 auto;font-size:.68rem;color:var(--muted)">単位名</span>
+          <input type="text" value="${esc(p.lotUnit||"cs")}" maxlength="10" style="padding:6px;flex:0 0 60px;text-align:center"
+            onchange="lotSet('${p.id}','lotUnit',this.value)">
+        </div>
+      </div>
+      <button class="icon del" onclick="prodDel('${p.id}')">削除</button>
+    </div>`;
+  }).join("");
+  return `<div class="card">
+    <h2>商品を登録</h2>
+    <label class="f">商品名</label>
+    <input type="text" id="pName" placeholder="例：真鯛（ラウンド）" maxlength="40">
+    <div class="row">
+      <div><label class="f">保管場所</label><select id="pLoc">${locOpts}</select></div>
+      <div><label class="f">業者</label><select id="pVen">${venOpts}</select></div>
+    </div>
+    <div class="row">
+      <div><label class="f">発注単位（表示用）</label><input type="text" id="pUnit" placeholder="個 / 本 / kg / ケース" maxlength="10"></div>
+      <div><label class="f">D2商品</label>
+        <select id="pD2"><option value="0">通常（翌日納品）</option><option value="1">D2（受注2日後納品）</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <div><label class="f">発注ロット入数（1ロットあたり）</label><input type="number" id="pLot" min="1" step="1" placeholder="1（バラ発注可）"></div>
+      <div><label class="f">ロット単位名</label><input type="text" id="pLotUnit" placeholder="cs / 箱 / 袋" maxlength="10"></div>
+    </div>
+    <div style="margin-top:14px"><button class="btn gold" onclick="prodAdd()">商品を追加</button></div>
+    <div class="hint">ケース納品→バラ保管の商品はロット入数を設定。例：1cs20pcなら「20」「cs」。在庫カウント・適正在庫はバラ（pc）のまま、発注数だけロット換算で表示されます。登録後、「適正在庫」タブで在庫基準を設定してください。</div>
+  </div>
+  <div class="card"><h2>登録済み商品（${master.products.length}）</h2>${list||'<div class="empty">まだ登録がありません</div>'}</div>`;
+}
+function prodAdd(){
+  const name = document.getElementById("pName").value.trim();
+  if(!name) return;
+  master.products.push({
+    id:uid(), name,
+    locId: document.getElementById("pLoc").value,
+    vendorId: document.getElementById("pVen").value,
+    unit: document.getElementById("pUnit").value.trim() || "個",
+    d2: document.getElementById("pD2").value === "1",
+    lot: Math.max(1, Math.floor(Number(document.getElementById("pLot").value)||1)),
+    lotUnit: document.getElementById("pLotUnit").value.trim() || "cs",
+    stk:{ow:0,oe:0,bw:0,be:0}
+  });
+  save(); render();
+}
+function prodDel(id){
+  master.products = master.products.filter(p=>p.id!==id); save(); render();
+}
+function lotSet(pid,key,val){
+  const p = master.products.find(x=>x.id===pid);
+  if(!p) return;
+  if(key==="lot") p.lot = Math.max(1, Math.floor(Number(val)||1));
+  else p.lotUnit = String(val).trim() || "cs";
+  save(); render();
+}
+
+/* ---------- 4. 繁忙期・曜日 ---------- */
+function vBusy(){
+  const periods = master.busyPeriods.map(p=>`
+    <div class="item">
+      <div class="grow"><span class="name">${fmtJP(p.start)} 〜 ${fmtJP(p.end)}</span></div>
+      <button class="icon del" onclick="bpDel('${p.id}')">削除</button>
+    </div>`).join("");
+  const mult = WD.map((w,i)=>`
+    <div style="text-align:center">
+      <div style="font-size:.7rem;color:${i===0?'var(--shu)':i===6?'#3B6DA8':'var(--muted)'};font-weight:700;margin-bottom:3px">${w}</div>
+      <input type="number" step="0.1" min="0" value="${master.wdMult[i]}" style="padding:8px 2px;text-align:center"
+        onchange="master.wdMult[${i}]=Number(this.value)||1;save()">
+    </div>`).join("");
+  const we = WD.map((w,i)=>
+    `<button class="${master.weekendDays.includes(i)?'on':''}" onclick="weTgl(${i})">${w}</button>`).join("");
+  return `<div class="card">
+    <h2>繁忙期間（複数登録可）</h2>
+    <div class="row">
+      <div><label class="f">開始日</label><input type="date" id="bpS"></div>
+      <div><label class="f">終了日</label><input type="date" id="bpE"></div>
+      <button class="btn gold narrow" onclick="bpAdd()">追加</button>
+    </div>
+    <div style="margin-top:10px">${periods||'<div class="empty">繁忙期間なし（常に閑散期の基準で計算）</div>'}</div>
+  </div>
+  <div class="card">
+    <h2>曜日ごとの在庫倍率</h2>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">${mult}</div>
+    <div class="hint">例：金曜1.2 → 金曜納品分の適正在庫を1.2倍で計算します。基本は1.0。</div>
+  </div>
+  <div class="card">
+    <h2>「週末」として扱う曜日</h2>
+    <div class="chips">${we}</div>
+    <div class="hint">適正在庫の「週末」基準を適用する曜日です。初期値は土・日。</div>
+  </div>`;
+}
+function bpAdd(){
+  const s = document.getElementById("bpS").value, e = document.getElementById("bpE").value;
+  if(!s||!e) return;
+  if(e<s){ alert("終了日が開始日より前です"); return; }
+  master.busyPeriods.push({id:uid(),start:s,end:e});
+  master.busyPeriods.sort((a,b)=>a.start<b.start?-1:1);
+  save(); render();
+}
+function bpDel(id){ master.busyPeriods = master.busyPeriods.filter(p=>p.id!==id); save(); render(); }
+function weTgl(i){
+  const p = master.weekendDays.indexOf(i);
+  p>=0 ? master.weekendDays.splice(p,1) : master.weekendDays.push(i);
+  save(); render();
+}
+
+/* ---------- 5. 適正在庫 ---------- */
+function vStock(){
+  if(!master.products.length){
+    return `<div class="card"><div class="empty">先に「商品」タブで商品を登録してください</div></div>`;
+  }
+  const rows = master.products.map(p=>{
+    const s = p.stk||{};
+    const cell = k => `<td><input type="number" min="0" step="0.5" value="${s[k]??0}"
+      onchange="stkSet('${p.id}','${k}',this.value)"></td>`;
+    return `<tr><td>${esc(p.name)}<div style="font-size:.62rem;color:var(--muted)">${esc(p.unit||"個")}</div></td>
+      ${cell("ow")}${cell("oe")}${cell("bw")}${cell("be")}</tr>`;
+  }).join("");
+  return `<div class="card">
+    <h2>適正在庫数（翌営業日の基準在庫）</h2>
+    <table class="stk">
+      <thead><tr><th style="text-align:left">商品</th><th>閑散<br>平日</th><th>閑散<br>週末</th><th>繁忙<br>平日</th><th>繁忙<br>週末</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="hint">曜日倍率（繁忙期・曜日タブ）を掛けた値が最終的な適正在庫になります。</div>
+  </div>`;
+}
+function stkSet(pid,k,v){
+  const p = master.products.find(x=>x.id===pid);
+  if(!p.stk) p.stk={ow:0,oe:0,bw:0,be:0};
+  p.stk[k] = Number(v)||0;
+  save();
+}
+
+/* ---------- 発注表 ---------- */
+function sheetOf(date){
+  if(!sheets[date]) sheets[date] = {stocks:{}, ordered:{}};
+  return sheets[date];
+}
+function vOrder(){
+  if(!master.products.length){
+    return `<div class="card"><div class="empty">マスタ設定がまだです。<br>①保管場所 → ②業者 → ③商品 → ④繁忙期・曜日 → ⑤適正在庫<br>の順に登録すると発注表が使えます。</div></div>`;
+  }
+  const date = ui.orderDate;
+  const sheet = sheetOf(date);
+
+  // グルーピング
+  let groups;
+  if(ui.group==="loc"){
+    groups = master.locations.map(l=>({title:l.name, items:master.products.filter(p=>p.locId===l.id)}));
+    const orphan = master.products.filter(p=>!master.locations.some(l=>l.id===p.locId));
+    if(orphan.length) groups.push({title:"（保管場所未設定）",items:orphan});
+  }else{
+    groups = master.vendors.map(v=>({title:v.name, items:master.products.filter(p=>p.vendorId===v.id)}));
+  }
+
+  // 業者休業のお知らせ（明日休業の業者）
+  const tomorrow = addDays(date,1);
+  const closedTomorrow = master.vendors.filter(v=>vendorClosed(v,tomorrow)).map(v=>v.name);
+  const busyToday = isBusy(tomorrow);
+
+  // 集計
+  let needCount=0, doneCount=0, totalCount=0;
+  const rendered = groups.map(g=>{
+    if(!g.items.length) return "";
+    const rows = g.items.map(p=>{
+      const cur = sheet.stocks[p.id];
+      const r = calcOrder(p, date, cur==null?null:Number(cur));
+      totalCount++;
+      const has = r.qty!=null && r.qty>0;
+      if(has) needCount++;
+      if(sheet.ordered[p.id]) doneCount++;
+      if(ui.onlyNeed && !has) return "";
+      const isLot = r.lot>1;
+      const qDisp = r.qty==null ? "—" : (isLot ? r.lots : r.qty);
+      const qCls = r.qty==null ? "zero" : (r.qty>0 ? "need" : "zero");
+      const uTxt = isLot
+        ? `${esc(p.lotUnit||"cs")} 発注${r.qty>0?`（=${r.deliveredPc}${esc(p.unit||"個")}納品）`:""}`
+        : `${esc(p.unit||"個")} 発注`;
+      const interimTxt = r.interimDays.length
+        ? ` ＋ 中日消費 ${r.interimDays.map(d=>fmtJP(d.date)+"分"+trim1(d.t)).join("、")}`
+        : "";
+      const lotTxt = isLot && r.qty!=null && r.qty>0 ? ` → 必要${r.qty}${esc(p.unit||"個")}を1${esc(p.lotUnit||"cs")}${r.lot}${esc(p.unit||"個")}で換算` : "";
+      const calcTxt = `適正在庫 ${trim1(r.target)}（${fmtJP(r.delivery)}納品時点）${interimTxt} − 現在庫 ${cur==null?"未入力":trim1(Number(cur))} → 切上げ${lotTxt}`;
+      const warnTxt = [
+        r.cutoffPassed ? "〆切超過→翌営業日受注" : "",
+        r.delayed ? "休業の影響で納品後ろ倒し" : ""
+      ].filter(Boolean).join(" ／ ");
+      return `<div class="prow ${sheet.ordered[p.id]?'done':''}">
+        <div class="top">
+          <div class="pname">${esc(p.name)}
+            <div class="badges">
+              ${p.d2?'<span class="tag d2">D2</span>':''}
+              ${r.lot>1?`<span class="tag shu">1${esc(p.lotUnit||"cs")}=${r.lot}${esc(p.unit||"個")}</span>`:''}
+              <span class="tag">${esc(r.vendor?.name||"業者未設定")}</span>
+            </div>
+          </div>
+          <label class="chk">発注済<input type="checkbox" ${sheet.ordered[p.id]?'checked':''}
+            onchange="ordChk('${p.id}',this.checked)"></label>
+        </div>
+        <div class="body">
+          <div class="stepper">
+            <div>
+              <div class="lbl">現在庫</div>
+              <div style="display:flex;gap:5px;align-items:center">
+                <button onclick="stkStep('${p.id}',-1)">−</button>
+                <input type="number" inputmode="decimal" step="0.5" min="0"
+                  value="${cur??""}" placeholder="0"
+                  id="in-${p.id}" onchange="stkInput('${p.id}',this.value)">
+                <button onclick="stkStep('${p.id}',1)">＋</button>
+              </div>
+            </div>
+          </div>
+          <div class="result">
+            <div class="qline">
+              <span class="q ${qCls} num" id="q-${p.id}">${qDisp}</span>
+              <span class="u" id="u-${p.id}">${uTxt}</span>
+            </div>
+            <div class="dline" id="d-${p.id}">
+              受注 ${fmtJP(r.accept)} → 納品 <b>${fmtJP(r.delivery)}</b>
+              ${warnTxt?`<span class="warn"> ⚠ ${warnTxt}</span>`:""}
+            </div>
+          </div>
+        </div>
+        <div class="calc" id="c-${p.id}">${calcTxt}</div>
+      </div>`;
+    }).join("");
+    if(!rows.trim()) return "";
+    return `<div class="grp-title">${esc(g.title)}</div>${rows}`;
+  }).join("");
+
+  return `
+  <div class="card">
+    <h2>発注表</h2>
+    <div class="osheet-head">
+      <input type="date" value="${date}" onchange="ui.orderDate=this.value;render()">
+      <div class="toggle">
+        <button class="${ui.group==='loc'?'on':''}" onclick="ui.group='loc';render()">保管場所順</button>
+        <button class="${ui.group==='ven'?'on':''}" onclick="ui.group='ven';render()">業者順</button>
+      </div>
+      <div class="toggle">
+        <button class="${!ui.onlyNeed?'on':''}" onclick="ui.onlyNeed=false;render()">全商品</button>
+        <button class="${ui.onlyNeed?'on':''}" onclick="ui.onlyNeed=true;render()">発注ありのみ</button>
+      </div>
+    </div>
+    <div class="hint">当日営業終了後にカウント → 翌日${busyToday?'（繁忙期）':''}の営業に向けた発注数を自動計算します。</div>
+  </div>
+  ${closedTomorrow.length?`<div class="notice">明日 ${fmtJP(tomorrow)} 休業：${closedTomorrow.map(esc).join("、")} — 該当商品の納品日は自動でずらして計算しています</div>`:""}
+  <div class="summary">
+    <div class="sumbox"><div class="v num" style="color:var(--gold)">${needCount}</div><div class="k">要発注</div></div>
+    <div class="sumbox"><div class="v num" style="color:var(--ok)">${doneCount}</div><div class="k">発注済</div></div>
+    <div class="sumbox"><div class="v num">${totalCount}</div><div class="k">全商品</div></div>
+  </div>
+  ${rendered || '<div class="card"><div class="empty">表示する商品がありません</div></div>'}`;
+}
+function trim1(n){ return Math.round(n*10)/10; }
+function stkInput(pid, val){
+  const sheet = sheetOf(ui.orderDate);
+  sheet.stocks[pid] = val==="" ? null : Math.max(0, Number(val));
+  save(); updateRow(pid);
+}
+function stkStep(pid, d){
+  const sheet = sheetOf(ui.orderDate);
+  const cur = Number(sheet.stocks[pid]||0);
+  sheet.stocks[pid] = Math.max(0, cur+d);
+  document.getElementById("in-"+pid).value = sheet.stocks[pid];
+  save(); updateRow(pid);
+}
+function ordChk(pid, on){
+  const sheet = sheetOf(ui.orderDate);
+  sheet.ordered[pid] = on;
+  save(); render();
+}
+// 行単位で再計算（フォーカスを保つ）
+function updateRow(pid){
+  const p = master.products.find(x=>x.id===pid);
+  const sheet = sheetOf(ui.orderDate);
+  const cur = sheet.stocks[pid];
+  const r = calcOrder(p, ui.orderDate, cur==null?null:Number(cur));
+  const q = document.getElementById("q-"+pid);
+  const isLot = r.lot>1;
+  if(q){
+    q.textContent = r.qty==null?"—":(isLot?r.lots:r.qty);
+    q.className = "q num "+(r.qty==null?"zero":(r.qty>0?"need":"zero"));
+  }
+  const u = document.getElementById("u-"+pid);
+  if(u){
+    u.textContent = isLot
+      ? `${p.lotUnit||"cs"} 発注${r.qty>0?`（=${r.deliveredPc}${p.unit||"個"}納品）`:""}`
+      : `${p.unit||"個"} 発注`;
+  }
+  const c = document.getElementById("c-"+pid);
+  if(c){
+    const interimTxt = r.interimDays.length
+      ? ` ＋ 中日消費 ${r.interimDays.map(d=>fmtJP(d.date)+"分"+trim1(d.t)).join("、")}` : "";
+    const lotTxt = isLot && r.qty!=null && r.qty>0 ? ` → 必要${r.qty}${p.unit||"個"}を1${p.lotUnit||"cs"}${r.lot}${p.unit||"個"}で換算` : "";
+    c.textContent = `適正在庫 ${trim1(r.target)}（${fmtJP(r.delivery)}納品時点）${interimTxt} − 現在庫 ${cur==null?"未入力":trim1(Number(cur))} → 切上げ${lotTxt}`;
+  }
+}
+
+/* ---------- 保存/復元 ---------- */
+function vBackup(){
+  const count = `保管場所${master.locations.length} ／ 業者${master.vendors.length} ／ 商品${master.products.length} ／ 繁忙期間${master.busyPeriods.length}`;
+  return `<div class="card">
+    <h2>マスタ設定をダウンロード</h2>
+    <div class="hint" style="margin:0 0 10px">現在の登録内容：${count}</div>
+    <div class="row">
+      <button class="btn gold" onclick="expData(false)">マスタのみ保存</button>
+      <button class="btn" onclick="expData(true)">マスタ＋発注履歴を保存</button>
+    </div>
+    <div class="hint">JSONファイルとして端末にダウンロードします。店舗間コピー・機種変更・バックアップ用。</div>
+  </div>
+  <div class="card">
+    <h2>ファイルから復元</h2>
+    <input type="file" id="impFile" accept=".json,application/json" style="padding:8px;background:#FDFCFA;border:1px dashed var(--line);border-radius:8px">
+    <div style="margin-top:12px"><button class="btn" onclick="impData()">読み込んで上書き</button></div>
+    <div class="hint" style="color:var(--shu)">※現在のマスタ設定は読み込んだ内容で上書きされます。念のため先に「マスタのみ保存」でバックアップを取ってから実行してください。</div>
+  </div>`;
+}
+function expData(withSheets){
+  const payload = {
+    app:"hacchu", ver:1, exported: new Date().toISOString(),
+    master: master,
+    sheets: withSheets ? sheets : undefined
+  };
+  const blob = new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = (withSheets?"発注マスタ＋履歴_":"発注マスタ_") + todayStr() + ".json";
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  setBar("ダウンロードしました ✓");
+  setTimeout(setSaved, 2000);
+}
+function impData(){
+  const el = document.getElementById("impFile");
+  const file = el.files && el.files[0];
+  if(!file){ alert("ファイルを選択してください"); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try{ data = JSON.parse(reader.result); }
+    catch(e){ alert("読み込み失敗：JSONファイルではありません"); return; }
+    const m = data.master || (data.locations ? data : null); // 素のmaster形式も許容
+    if(!m || !Array.isArray(m.locations) || !Array.isArray(m.vendors) || !Array.isArray(m.products)){
+      alert("読み込み失敗：発注アプリのマスタファイルではありません"); return;
+    }
+    const msg = `以下の内容で上書きします。よろしいですか？\n\n保管場所 ${m.locations.length}件\n業者 ${m.vendors.length}件\n商品 ${m.products.length}件\n繁忙期間 ${(m.busyPeriods||[]).length}件`
+      + (data.sheets ? `\n発注履歴 ${Object.keys(data.sheets).length}日分` : "");
+    if(!confirm(msg)) return;
+    master = Object.assign({
+      locations:[],vendors:[],products:[],busyPeriods:[],
+      wdMult:{0:1,1:1,2:1,3:1,4:1,5:1,6:1},weekendDays:[0,6]
+    }, m);
+    // 欠損フィールドの補完（旧バージョンのファイル対策）
+    master.vendors.forEach(v=>{ v.closedWd=v.closedWd||[]; v.irregular=v.irregular||[]; });
+    master.products.forEach(p=>{ p.stk=p.stk||{ow:0,oe:0,bw:0,be:0}; p.lot=Math.max(1,Number(p.lot)||1); p.lotUnit=p.lotUnit||"cs"; p.unit=p.unit||"個"; });
+    if(data.sheets) sheets = data.sheets;
+    save();
+    alert("復元しました");
+    go("order");
+  };
+  reader.readAsText(file);
+}
+
+load();
+</script>
+</body>
+</html>
