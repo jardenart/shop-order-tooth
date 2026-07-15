@@ -911,7 +911,7 @@ function vOrder(){
               <span class="u" id="u-${p.id}">${uTxt}</span>
             </div>
             <div class="dline" id="d-${p.id}">
-              受注 ${fmtJP(r.accept)} → 納品 <b>${fmtJP(r.delivery)}</b>
+              ${p.d2?`受注 ${fmtJP(r.accept)} → `:""}納品 <b>${fmtJP(r.delivery)}</b>${p.d2?"":"（翌朝受注・当日便）"}
               ${r.pending.pc>0?`<span class="tag ok">入荷予定 ${r.pending.pc}${esc(p.unit||"個")}</span>`:""}
               ${warnTxt?`<span class="warn"> ⚠ ${warnTxt}</span>`:""}
             </div>
