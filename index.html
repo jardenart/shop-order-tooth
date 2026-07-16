@@ -255,6 +255,7 @@ async function load(){
   if(m){ try{ master = Object.assign(master, JSON.parse(m)); }catch(e){} }
   const s = await stGet("hacchu:sheets");
   if(s){ try{ sheets = JSON.parse(s); }catch(e){} }
+  master.vendors = master.vendors.map(migrateVendor); // 旧形式(定休日)→新形式(配休/休業)へ変換
   setSaved();
   render();
 }
@@ -291,40 +292,65 @@ function fmtJP(s){ const d=toDate(s); return (d.getMonth()+1)+"/"+d.getDate()+"(
 
 /* ============================================================
    発注ロジック
+   配休日＝納品不可・受注可 ／ 休業日＝受注・納品とも不可
 ============================================================ */
-function vendorClosed(v, dateStr){
-  if(!v) return false;
-  if(v.closedWd.includes(wdOf(dateStr))) return true;
-  if(v.irregular.includes(dateStr)) return true;
-  return false;
+// 旧形式(定休日のみ)の業者データを新形式へ変換
+function migrateVendor(v){
+  if(v.kyugyoWd) {
+    v.haikyuWd = v.haikyuWd||[]; v.haikyuIrr = v.haikyuIrr||[];
+    v.kyugyoIrr = v.kyugyoIrr||[];
+    v.cutoffByDay = v.cutoffByDay||{0:"",1:"",2:"",3:"",4:"",5:"",6:""};
+    return v;
+  }
+  return {
+    id:v.id, name:v.name,
+    haikyuWd:[], haikyuIrr:[],
+    kyugyoWd: v.closedWd||[], kyugyoIrr: v.irregular||[],
+    cutoffMode: v.cutoffOn ? "all" : "none",
+    cutoff: v.cutoff||"16:00",
+    cutoffByDay:{0:"",1:"",2:"",3:"",4:"",5:"",6:""}
+  };
 }
-// 〆切判定：発注日に業者が営業している場合のみ（休業日の発注は翌営業日の朝にまとめて確認されるため〆切の概念がない）
-// 判定は発注日=本日のときのみ端末時刻で行う
-function cutoffCheck(v, orderDate){
-  if(!v || !v.cutoffOn || !v.cutoff) return false;
-  if(vendorClosed(v, orderDate)) return false;
-  if(orderDate !== todayStr()) return false;
-  const now = new Date();
-  const [h,m] = v.cutoff.split(":").map(Number);
-  return now.getHours()*60+now.getMinutes() > h*60+m;
+function isKyugyo(v, dateStr){ // 休業：受注も納品も不可
+  if(!v) return false;
+  return v.kyugyoWd.includes(wdOf(dateStr)) || v.kyugyoIrr.includes(dateStr);
+}
+function isHaikyu(v, dateStr){ // 配休：納品不可・受注は可
+  if(!v) return false;
+  return v.haikyuWd.includes(wdOf(dateStr)) || v.haikyuIrr.includes(dateStr);
+}
+function noDelivery(v, dateStr){ return isKyugyo(v,dateStr) || isHaikyu(v,dateStr); }
+// その日に適用される〆切時刻（なければnull）
+function cutoffTimeFor(v, dateStr){
+  if(!v || v.cutoffMode==="none" || !v.cutoffMode) return null;
+  if(v.cutoffMode==="all") return v.cutoff || null;
+  const t = v.cutoffByDay[wdOf(dateStr)];
+  return t || null;
+}
+// 実効発注日：〆切超過なら翌日発注扱い（判定は発注日=本日のときのみ端末時刻で）
+function effectiveOrderDate(v, orderDate){
+  const t = cutoffTimeFor(v, orderDate);
+  if(t && orderDate === todayStr()){
+    const now = new Date();
+    const [h,m] = t.split(":").map(Number);
+    if(now.getHours()*60+now.getMinutes() > h*60+m){
+      return {e: addDays(orderDate,1), cutoffPassed:true};
+    }
+  }
+  return {e: orderDate, cutoffPassed:false};
 }
 // 納品日
-// 通常：翌営業日の朝に受注確認→当日納品（〆切超過なら+1日）。休業日はスキップ
-// D2：受注日（〆切内=当日、超過=翌日。受注日が休業ならさらに翌営業日）の2日後納品。着日が休業ならさらに翌営業日
+// 受注確認日C＝実効発注日の翌日。休業日はスキップ（配休日は受注可なのでスキップしない）
+// D1納品＝C当日、D2納品＝Cの翌日。納品日が配休/休業なら翌納品可能日へ
 function deliveryDate(v, orderDate, d2){
-  const cutoffPassed = cutoffCheck(v, orderDate);
+  const {e, cutoffPassed} = effectiveOrderDate(v, orderDate);
+  let c = addDays(e,1);
   let guard = 0;
-  if(d2){
-    let a = cutoffPassed ? addDays(orderDate,1) : orderDate;
-    while(v && vendorClosed(v,a) && guard++ < 30) a = addDays(a,1);
-    let d = addDays(a,2);
-    guard = 0;
-    while(v && vendorClosed(v,d) && guard++ < 30) d = addDays(d,1);
-    return {delivery:d, accept:a, cutoffPassed};
-  }
-  let d = addDays(orderDate, cutoffPassed ? 2 : 1);
-  while(v && vendorClosed(v,d) && guard++ < 30) d = addDays(d,1);
-  return {delivery:d, accept:d, cutoffPassed}; // 通常商品は受注確認=納品当日の朝
+  while(v && isKyugyo(v,c) && guard++ < 30) c = addDays(c,1);
+  let d = d2 ? addDays(c,1) : c;
+  guard = 0;
+  while(v && noDelivery(v,d) && guard++ < 30) d = addDays(d,1);
+  return {delivery:d, accept:c, cutoffPassed, effOrder:e};
 }
 function isBusy(dateStr){
   return master.busyPeriods.some(p=> p.start && p.end && p.start<=dateStr && dateStr<=p.end);
@@ -445,23 +471,47 @@ function locMove(id,dir){
 }
 
 /* ---------- 2. 業者 ---------- */
-let vForm = {editId:null, name:"", closedWd:[], cutoffOn:false, cutoff:"14:00"};
+function emptyVForm(){
+  return {editId:null, name:"", haikyuWd:[], kyugyoWd:[],
+    cutoffMode:"none", cutoff:"16:00",
+    cutoffByDay:{0:"",1:"",2:"",3:"",4:"",5:"",6:""}};
+}
+let vForm = emptyVForm();
 function vVendor(){
-  const chips = WD.map((w,i)=>
-    `<button class="${vForm.closedWd.includes(i)?'on':''}" onclick="vWd(${i})">${w}</button>`).join("");
+  const haiChips = WD.map((w,i)=>
+    `<button class="${vForm.haikyuWd.includes(i)?'on':''}" onclick="vHai(${i})">${w}</button>`).join("");
+  const kyuChips = WD.map((w,i)=>
+    `<button class="${vForm.kyugyoWd.includes(i)?'on':''}" onclick="vKyu(${i})">${w}</button>`).join("");
   const editing = !!vForm.editId;
+  const cutoffUI =
+    vForm.cutoffMode==="all"
+      ? `<input type="time" value="${vForm.cutoff}" onchange="vForm.cutoff=this.value">`
+    : vForm.cutoffMode==="byday"
+      ? `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:6px">${
+          WD.map((w,i)=>`<div style="text-align:center">
+            <div style="font-size:.68rem;color:${i===0?'var(--shu)':i===6?'#3B6DA8':'var(--muted)'};font-weight:700;margin-bottom:2px">${w}</div>
+            <input type="time" value="${vForm.cutoffByDay[i]||""}" style="padding:6px 2px;font-size:.72rem"
+              onchange="vForm.cutoffByDay[${i}]=this.value">
+          </div>`).join("")}</div>
+        <div class="hint">空欄の曜日は〆切なし扱いです。</div>`
+    : "";
   const list = master.vendors.map(v=>{
-    const cw = v.closedWd.length ? "定休："+v.closedWd.map(i=>WD[i]).join("・") : "定休なし";
-    const co = v.cutoffOn ? "〆切 "+v.cutoff : "〆切なし";
-    const ir = v.irregular.length ? `<br>臨時休業：${v.irregular.map(fmtJP).join("、")}` : "";
+    const hai = v.haikyuWd.length ? "配休："+v.haikyuWd.map(i=>WD[i]).join("・") : "配休なし";
+    const kyu = v.kyugyoWd.length ? "休業："+v.kyugyoWd.map(i=>WD[i]).join("・") : "休業なし";
+    const co = v.cutoffMode==="all" ? "〆切 "+v.cutoff
+      : v.cutoffMode==="byday" ? "〆切(曜日別) "+WD.map((w,i)=>v.cutoffByDay[i]?w+v.cutoffByDay[i]:"").filter(Boolean).join(" ")
+      : "〆切なし";
+    const irrH = v.haikyuIrr.length ? `<br>臨時配休：${v.haikyuIrr.map(fmtJP).join("、")}` : "";
+    const irrK = v.kyugyoIrr.length ? `<br>臨時休業：${v.kyugyoIrr.map(fmtJP).join("、")}` : "";
     return `<div class="item" style="${vForm.editId===v.id?'background:var(--gold-soft);border-radius:8px;padding-left:8px;padding-right:4px':''}">
       <div class="grow">
         <span class="name">${esc(v.name)}</span>
-        <div class="meta">${cw} ／ ${co}${ir}</div>
+        <div class="meta">${hai} ／ ${kyu} ／ ${co}${irrH}${irrK}</div>
         <div class="row" style="margin-top:6px">
           <input type="date" id="ir-${v.id}" style="padding:6px">
-          <button class="btn ghost narrow" style="padding:6px 10px;font-size:.72rem" onclick="irAdd('${v.id}')">臨時休業を追加</button>
-          ${v.irregular.length?`<button class="btn ghost narrow" style="padding:6px 10px;font-size:.72rem" onclick="irClear('${v.id}')">臨時休業クリア</button>`:""}
+          <button class="btn ghost narrow" style="padding:6px 8px;font-size:.7rem" onclick="irAdd('${v.id}','haikyuIrr')">臨時配休</button>
+          <button class="btn ghost narrow" style="padding:6px 8px;font-size:.7rem" onclick="irAdd('${v.id}','kyugyoIrr')">臨時休業</button>
+          ${(v.haikyuIrr.length||v.kyugyoIrr.length)?`<button class="btn ghost narrow" style="padding:6px 8px;font-size:.7rem;color:var(--shu)" onclick="irClear('${v.id}')">臨時クリア</button>`:""}
         </div>
       </div>
       <button class="icon" style="color:var(--gold);font-weight:700" onclick="venEdit('${v.id}')">編集</button>
@@ -473,70 +523,104 @@ function vVendor(){
     <label class="f">業者名</label>
     <input type="text" id="venName" placeholder="例：○○水産" maxlength="30"
       value="${esc(vForm.name)}" oninput="vForm.name=this.value">
-    <label class="f">定休日（タップで選択）</label>
-    <div class="chips">${chips}</div>
-    <label class="f">発注〆切時間</label>
-    <div class="row">
-      <select id="venCutOn" class="narrow" style="flex:0 0 100px" onchange="vForm.cutoffOn=this.value==='1';render()">
-        <option value="0" ${!vForm.cutoffOn?'selected':''}>無</option>
-        <option value="1" ${vForm.cutoffOn?'selected':''}>有</option>
-      </select>
-      ${vForm.cutoffOn?`<input type="time" id="venCut" value="${vForm.cutoff}" onchange="vForm.cutoff=this.value">`:''}
-    </div>
+    <label class="f">配休日（納品できないが、受注はできる曜日）</label>
+    <div class="chips">${haiChips}</div>
+    <label class="f">休業日（受注も納品もできない曜日）</label>
+    <div class="chips">${kyuChips}</div>
+    <label class="f">発注〆切時刻（過ぎたら翌日発注扱い）</label>
+    <select style="margin-bottom:6px" onchange="vForm.cutoffMode=this.value;render()">
+      <option value="none" ${vForm.cutoffMode==='none'?'selected':''}>〆切なし</option>
+      <option value="all" ${vForm.cutoffMode==='all'?'selected':''}>毎日同じ時刻（一括設定）</option>
+      <option value="byday" ${vForm.cutoffMode==='byday'?'selected':''}>曜日ごとに設定</option>
+    </select>
+    ${cutoffUI}
     <div style="margin-top:14px" class="row">
       <button class="btn gold" onclick="venSave()">${editing?'この内容で更新':'業者を追加'}</button>
       ${editing?'<button class="btn ghost narrow" onclick="venCancel()">キャンセル</button>':''}
     </div>
-    <div class="hint">〆切時間を過ぎた発注は翌営業日受注扱いになり、納品日が後ろへずれます。</div>
+    <div class="hint">〆切超過の発注は翌日に発注した扱いとなり、そこから配休・休業を考慮して納品日を計算します。同じ曜日を配休と休業の両方には設定できません。</div>
   </div>
   <div class="card"><h2>登録済み業者（${master.vendors.length}）</h2>${list||'<div class="empty">まだ登録がありません</div>'}</div>`;
 }
-function vWd(i){
-  const p = vForm.closedWd.indexOf(i);
-  p>=0 ? vForm.closedWd.splice(p,1) : vForm.closedWd.push(i);
+function vHai(i){
+  const p = vForm.haikyuWd.indexOf(i);
+  if(p>=0) vForm.haikyuWd.splice(p,1);
+  else{
+    vForm.haikyuWd.push(i);
+    const k = vForm.kyugyoWd.indexOf(i);
+    if(k>=0) vForm.kyugyoWd.splice(k,1); // 休業と重複不可
+  }
+  render();
+}
+function vKyu(i){
+  const p = vForm.kyugyoWd.indexOf(i);
+  if(p>=0) vForm.kyugyoWd.splice(p,1);
+  else{
+    vForm.kyugyoWd.push(i);
+    const h = vForm.haikyuWd.indexOf(i);
+    if(h>=0) vForm.haikyuWd.splice(h,1); // 配休と重複不可
+  }
   render();
 }
 function venSave(){
   const name = vForm.name.trim();
   if(!name){ alert("業者名を入力してください"); return; }
+  if(vForm.cutoffMode==="byday" && !Object.values(vForm.cutoffByDay).some(t=>t)){
+    alert("曜日別〆切がすべて空欄です。〆切のない業者は「〆切なし」を選択してください"); return;
+  }
   if(vForm.editId){
     const v = master.vendors.find(x=>x.id===vForm.editId);
     if(v){
       v.name = name;
-      v.closedWd = [...vForm.closedWd];
-      v.cutoffOn = vForm.cutoffOn;
-      v.cutoff = vForm.cutoffOn ? (vForm.cutoff||"14:00") : "";
-      // 臨時休業日はそのまま保持
+      v.haikyuWd = [...vForm.haikyuWd];
+      v.kyugyoWd = [...vForm.kyugyoWd];
+      v.cutoffMode = vForm.cutoffMode;
+      v.cutoff = vForm.cutoff||"16:00";
+      v.cutoffByDay = {...vForm.cutoffByDay};
+      // 臨時配休・臨時休業はそのまま保持
     }
   }else{
-    master.vendors.push({id:uid(),name,closedWd:[...vForm.closedWd],irregular:[],cutoffOn:vForm.cutoffOn,cutoff:vForm.cutoffOn?(vForm.cutoff||"14:00"):""});
+    master.vendors.push({
+      id:uid(), name,
+      haikyuWd:[...vForm.haikyuWd], haikyuIrr:[],
+      kyugyoWd:[...vForm.kyugyoWd], kyugyoIrr:[],
+      cutoffMode:vForm.cutoffMode, cutoff:vForm.cutoff||"16:00",
+      cutoffByDay:{...vForm.cutoffByDay}
+    });
   }
-  vForm = {editId:null,name:"",closedWd:[],cutoffOn:false,cutoff:"14:00"};
+  vForm = emptyVForm();
   save(); render();
 }
 function venEdit(id){
   const v = master.vendors.find(x=>x.id===id);
   if(!v) return;
-  vForm = {editId:id, name:v.name, closedWd:[...v.closedWd], cutoffOn:v.cutoffOn, cutoff:v.cutoff||"14:00"};
+  vForm = {editId:id, name:v.name,
+    haikyuWd:[...v.haikyuWd], kyugyoWd:[...v.kyugyoWd],
+    cutoffMode:v.cutoffMode||"none", cutoff:v.cutoff||"16:00",
+    cutoffByDay:{...(v.cutoffByDay||{0:"",1:"",2:"",3:"",4:"",5:"",6:""})}};
   render(); window.scrollTo(0,0);
 }
 function venCancel(){
-  vForm = {editId:null,name:"",closedWd:[],cutoffOn:false,cutoff:"14:00"};
+  vForm = emptyVForm();
   render();
 }
 function venDel(id){
   if(master.products.some(p=>p.vendorId===id)){ alert("この業者を使用中の商品があります。先に商品側を変更してください。"); return; }
   master.vendors = master.vendors.filter(v=>v.id!==id); save(); render();
 }
-function irAdd(id){
+function irAdd(id, kind){ // kind: 'haikyuIrr' | 'kyugyoIrr'
   const el = document.getElementById("ir-"+id);
-  if(!el.value) return;
+  if(!el.value){ alert("日付を選択してください"); return; }
   const v = master.vendors.find(x=>x.id===id);
-  if(!v.irregular.includes(el.value)) v.irregular.push(el.value);
-  v.irregular.sort(); save(); render();
+  const other = kind==="haikyuIrr" ? "kyugyoIrr" : "haikyuIrr";
+  v[other] = v[other].filter(d=>d!==el.value); // 配休/休業の重複不可
+  if(!v[kind].includes(el.value)) v[kind].push(el.value);
+  v[kind].sort(); save(); render();
 }
 function irClear(id){
-  master.vendors.find(x=>x.id===id).irregular = []; save(); render();
+  const v = master.vendors.find(x=>x.id===id);
+  v.haikyuIrr = []; v.kyugyoIrr = [];
+  save(); render();
 }
 
 /* ---------- 3. 商品 ---------- */
@@ -854,9 +938,10 @@ function vOrder(){
     groups = master.vendors.map(v=>({title:v.name, items:master.products.filter(p=>p.vendorId===v.id)}));
   }
 
-  // 業者休業のお知らせ（明日休業の業者）
+  // 業者の納品不可のお知らせ（明日届かない業者）
   const tomorrow = addDays(date,1);
-  const closedTomorrow = master.vendors.filter(v=>vendorClosed(v,tomorrow)).map(v=>v.name);
+  const closedTomorrow = master.vendors.filter(v=>noDelivery(v,tomorrow))
+    .map(v=>v.name+(isKyugyo(v,tomorrow)?"(休業)":"(配休)"));
   const busyToday = isBusy(tomorrow);
 
   // 集計
@@ -885,7 +970,7 @@ function vOrder(){
         ? ` − 入荷予定 ${r.pending.details.map(x=>fmtJP(x.date)+"着"+x.pc).join("、")}` : "";
       const calcTxt = `適正在庫 ${trim1(r.target)}（${fmtJP(r.delivery)}納品時点）${interimTxt}${pendTxt} − 現在庫 ${cur==null?"未入力":trim1(Number(cur))} → 切上げ${lotTxt}`;
       const warnTxt = [
-        r.cutoffPassed ? "〆切超過→翌営業日受注" : "",
+        r.cutoffPassed ? "〆切超過→翌日発注扱い" : "",
         r.delayed ? "休業の影響で納品後ろ倒し" : ""
       ].filter(Boolean).join(" ／ ");
       return `<div class="prow ${sheet.ordered[p.id]?'done':''}">
@@ -919,7 +1004,7 @@ function vOrder(){
               <span class="u" id="u-${p.id}">${uTxt}</span>
             </div>
             <div class="dline" id="d-${p.id}">
-              ${p.d2?`受注 ${fmtJP(r.accept)} → `:""}納品 <b>${fmtJP(r.delivery)}</b>${p.d2?"":"（翌朝受注・当日便）"}
+              ${(p.d2 || r.delivery!==r.accept)?`受注 ${fmtJP(r.accept)} → `:""}納品 <b>${fmtJP(r.delivery)}</b>${(!p.d2 && r.delivery===r.accept)?"（翌朝受注・当日便）":""}
               ${r.pending.pc>0?`<span class="tag ok">入荷予定 ${r.pending.pc}${esc(p.unit||"個")}</span>`:""}
               ${warnTxt?`<span class="warn"> ⚠ ${warnTxt}</span>`:""}
             </div>
@@ -948,7 +1033,7 @@ function vOrder(){
     </div>
     <div class="hint">当日営業終了後にカウント → 翌日${busyToday?'（繁忙期）':''}の営業に向けた発注数を自動計算します。</div>
   </div>
-  ${closedTomorrow.length?`<div class="notice">明日 ${fmtJP(tomorrow)} 休業：${closedTomorrow.map(esc).join("、")} — 該当商品の納品日は自動でずらして計算しています</div>`:""}
+  ${closedTomorrow.length?`<div class="notice">明日 ${fmtJP(tomorrow)} 納品なし：${closedTomorrow.map(esc).join("、")} — 該当商品の納品日は自動でずらして計算しています</div>`:""}
   <div class="summary">
     <div class="sumbox"><div class="v num" style="color:var(--gold)">${needCount}</div><div class="k">要発注</div></div>
     <div class="sumbox"><div class="v num" style="color:var(--ok)">${doneCount}</div><div class="k">発注済</div></div>
@@ -1068,7 +1153,7 @@ function impData(){
       wdMult:{0:1,1:1,2:1,3:1,4:1,5:1,6:1},weekendDays:[0,6]
     }, m);
     // 欠損フィールドの補完（旧バージョンのファイル対策）
-    master.vendors.forEach(v=>{ v.closedWd=v.closedWd||[]; v.irregular=v.irregular||[]; });
+    master.vendors = master.vendors.map(migrateVendor);
     master.products.forEach(p=>{ p.stk=p.stk||{ow:0,oe:0,bw:0,be:0}; p.lot=Math.max(1,Number(p.lot)||1); p.lotUnit=p.lotUnit||"cs"; p.unit=p.unit||"個"; });
     if(data.sheets) sheets = data.sheets;
     save();
