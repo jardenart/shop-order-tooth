@@ -12,6 +12,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Porders">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 <script>
 // Service Worker登録（https配信時のみ。Claudeプレビューやfile://ではスキップ）
 if ("serviceWorker" in navigator && location.protocol === "https:") {
@@ -45,13 +48,47 @@ body{
 }
 .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 
+/* ===== splash ===== */
+#splash{
+  position:fixed;inset:0;z-index:999;
+  background:var(--sumi);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+  transition:opacity .45s ease;
+}
+#splash.hide{opacity:0;pointer-events:none}
+#splash img{
+  width:96px;height:96px;border-radius:22%;
+  box-shadow:0 8px 30px rgba(0,0,0,.35);
+  animation:splashLogo .9s cubic-bezier(.2,.7,.3,1) both;
+}
+#splash .wm{
+  font-family:'Playfair Display',serif;font-weight:600;
+  font-size:2rem;color:#F2F5F9;letter-spacing:.06em;
+  animation:splashText .9s .25s cubic-bezier(.2,.7,.3,1) both;
+}
+#splash .tag{
+  font-size:.62rem;color:#9DB3CE;letter-spacing:.34em;background:none;padding:0;margin:0;
+  animation:splashText .9s .45s cubic-bezier(.2,.7,.3,1) both;
+}
+@keyframes splashLogo{
+  from{opacity:0;transform:scale(.78) translateY(8px)}
+  to{opacity:1;transform:scale(1) translateY(0)}
+}
+@keyframes splashText{
+  from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@media (prefers-reduced-motion:reduce){
+  #splash img,#splash .wm,#splash .tag{animation:none}
+}
+
 /* ===== header ===== */
 header{
   background:var(--sumi);color:#F2F5F9;
   padding:14px 16px 10px;
   position:sticky;top:0;z-index:20;
 }
-header h1{font-size:1.05rem;font-weight:700;letter-spacing:.14em}
+header h1{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:600;letter-spacing:.05em}
 header .sub{font-size:.68rem;color:#9DB3CE;letter-spacing:.2em;margin-top:2px}
 nav{
   display:flex;gap:4px;overflow-x:auto;
@@ -221,6 +258,11 @@ textarea.paste:focus{outline:2px solid var(--gold)}
 </style>
 </head>
 <body>
+<div id="splash">
+  <img src="icon-192.png" alt="" onerror="this.style.display='none'">
+  <div class="wm">Porders</div>
+  <div class="tag">ORDER MANAGEMENT</div>
+</div>
 <header>
   <h1>Porders</h1>
   <div class="sub">発注管理 ─ ORDER MANAGEMENT</div>
@@ -1180,6 +1222,17 @@ function impData(){
 }
 
 load();
+// 起動スプラッシュ：描画完了後にフェードアウト
+(function(){
+  const sp = document.getElementById("splash");
+  if(!sp) return;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const wait = reduced ? 250 : 1250;
+  setTimeout(()=>{
+    sp.classList.add("hide");
+    setTimeout(()=>sp.remove(), 500);
+  }, wait);
+})();
 </script>
 </body>
 </html>
