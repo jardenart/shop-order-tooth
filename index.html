@@ -48,6 +48,31 @@ body{
 }
 .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 
+/* ===== tutorial ===== */
+#tut{position:fixed;inset:0;z-index:900;background:rgba(2,25,48,.72);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px)}
+.tutcard{background:#fff;border-radius:16px;max-width:420px;width:100%;padding:24px 22px 16px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.tutcard .tutico{font-size:2rem;margin-bottom:8px}
+.tutcard .stepno{font-size:.66rem;font-weight:700;color:#0E63AE;letter-spacing:.22em;margin-bottom:6px}
+.tutcard h3{font-size:1.08rem;margin-bottom:10px;color:var(--ink)}
+.tutcard .body{font-size:.85rem;line-height:1.85;color:#3D4E63;min-height:150px}
+.tutcard .body b{color:var(--sumi)}
+.tutdots{display:flex;gap:6px;justify-content:center;margin:16px 0 12px}
+.tutdots span{width:7px;height:7px;border-radius:50%;background:#D5DFEA;transition:all .2s}
+.tutdots span.on{background:var(--gold);width:20px;border-radius:4px}
+.tutbtns{display:flex;gap:8px}
+.tutbtns .btn{flex:1}
+.tutskip{text-align:center;margin-top:10px}
+.tutskip button{background:none;border:none;color:#8195AB;font-size:.72rem;cursor:pointer;font-family:inherit;text-decoration:underline}
+#helpbtn{position:absolute;right:14px;top:14px;width:30px;height:30px;border-radius:50%;border:1px solid #2C5786;background:transparent;color:#C2D4E8;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit}
+/* setup checklist */
+.setup-item{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line)}
+.setup-item:last-child{border-bottom:none}
+.setup-item .mark{width:26px;height:26px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;background:#E7EDF4;color:#9AA9BB}
+.setup-item.done .mark{background:var(--ok-soft);color:var(--ok)}
+.setup-item .grow{flex:1}
+.setup-item .t{font-size:.86rem;font-weight:700}
+.setup-item .d{font-size:.7rem;color:var(--muted);margin-top:1px}
+
 /* ===== splash ===== */
 #splash{
   position:fixed;inset:0;z-index:999;
@@ -87,6 +112,7 @@ header{
   background:var(--sumi);color:#F2F5F9;
   padding:14px 16px 10px;
   position:sticky;top:0;z-index:20;
+  position:relative;position:sticky;
 }
 header h1{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:600;letter-spacing:.05em}
 header .sub{font-size:.68rem;color:#9DB3CE;letter-spacing:.2em;margin-top:2px}
@@ -264,6 +290,7 @@ textarea.paste:focus{outline:2px solid var(--gold)}
   <div class="tag">ORDER MANAGEMENT</div>
 </div>
 <header>
+  <button id="helpbtn" onclick="tutOpen()" title="使い方">?</button>
   <h1>Porders</h1>
   <div class="sub">発注管理 ─ ORDER MANAGEMENT</div>
 </header>
@@ -316,6 +343,12 @@ async function load(){
   master.vendors = master.vendors.map(migrateVendor); // 旧形式(定休日)→新形式(配休/休業)へ変換
   setSaved();
   render();
+  // 初回起動判定：この端末で未読なら表示（マスタ登録済みでも初回は1度表示）
+  const tut = await stGet("hacchu:tut");
+  if(!tut){
+    ui.tut = {on:true, step:0};
+    tutRender();
+  }
 }
 let saveTimer=null;
 function save(){
@@ -981,7 +1014,24 @@ function sheetOf(date){
 }
 function vOrder(){
   if(!master.products.length){
-    return `<div class="card"><div class="empty">マスタ設定がまだです。<br>①保管場所 → ②業者 → ③商品 → ④繁忙期・曜日 → ⑤適正在庫<br>の順に登録すると発注表が使えます。</div></div>`;
+    const hasStk = master.products.some(p=>p.stk && Object.values(p.stk).some(v=>Number(v)>0));
+    const steps = [
+      ["保管場所を登録", master.locations.length>0, "loc", master.locations.length? master.locations.length+"か所 登録済み":"カウントの動線順に登録"],
+      ["業者を登録", master.vendors.length>0, "vendor", master.vendors.length? master.vendors.length+"社 登録済み":"配休・休業・〆切を設定"],
+      ["商品を登録", master.products.length>0, "prod", "Excelから一括貼り付けが便利"],
+      ["適正在庫を設定", hasStk, "stock", "閑散/繁忙×平日/週末の4パターン"]
+    ];
+    const items = steps.map(([t,done,tab,d],i)=>`
+      <div class="setup-item ${done?'done':''}" onclick="go('${tab}')" style="cursor:pointer">
+        <div class="mark">${done?'✓':i+1}</div>
+        <div class="grow"><div class="t">${t}</div><div class="d">${d}</div></div>
+        <span style="color:var(--muted)">›</span>
+      </div>`).join("");
+    return `<div class="card">
+      <h2>セットアップ</h2>
+      ${items}
+      <div style="margin-top:12px"><button class="btn ghost" style="width:100%" onclick="tutOpen()">📖 使い方ガイドを見る</button></div>
+    </div>`;
   }
   const date = ui.orderDate;
   const sheet = sheetOf(date);
@@ -1219,6 +1269,59 @@ function impData(){
     go("order");
   };
   reader.readAsText(file);
+}
+
+
+/* ============================================================
+   チュートリアル
+============================================================ */
+const TUT_STEPS = [
+ {ico:"🐳", no:"WELCOME", t:"Pordersへようこそ",
+  b:"営業終了後に在庫を数えるだけで、<b>今日発注すべき商品・数量・納品日</b>を自動計算するアプリです。<br><br>最初に5つのマスタを順番に登録します。1分で流れを説明します。"},
+ {ico:"📍", no:"STEP 1 ─ 保管場所", t:"数えて回る順に登録",
+  b:"冷蔵庫A、ドライ棚…など<b>在庫カウントの動線順</b>に登録します（最大30か所）。発注表がこの順に並ぶので、実際に歩く順で作るのがコツです。"},
+ {ico:"🚚", no:"STEP 2 ─ 業者", t:"配休・休業・〆切を設定",
+  b:"<b>配休日</b>＝納品は来ないが発注は受け付ける日<br><b>休業日</b>＝発注も納品もない日<br><b>〆切時刻</b>＝過ぎたら翌日発注扱い（曜日ごとの設定も可）<br><br>この3つから納品日を自動計算します。"},
+ {ico:"📦", no:"STEP 3 ─ 商品", t:"Excelからコピペで一括登録",
+  b:"Excelの商品名の列をコピーして貼り付けるだけで<b>まとめて登録</b>できます。<br><br>翌々日に届く商品は<b>D2</b>、ケース納品→バラ保管の商品は<b>ロット入数</b>（例：1cs=20pc）を設定してください。"},
+ {ico:"📊", no:"STEP 4 ─ 適正在庫", t:"4パターンの基準在庫",
+  b:"商品ごとに<b>閑散/繁忙 × 平日/週末</b>の4つの基準在庫を入力します。<br><br>繁忙期間（●月●日〜●月●日）と曜日倍率（金曜1.2倍など）は「繁忙期・曜日」タブで設定します。"},
+ {ico:"✅", no:"STEP 5 ─ 毎日の使い方", t:"数える → 発注する → ☑",
+  b:"① 営業終了後、発注表で在庫数を入力<br>② 表示された数量・納品日どおりに業者へ発注<br>③ <b>発注済☑</b>を付ける<br><br>☑した分は「入荷予定」として翌日以降の計算から自動で差し引かれ、<b>二重発注を防ぎます</b>。"}
+];
+function tutRender(){
+  let el = document.getElementById("tut");
+  if(!ui.tut || !ui.tut.on){ if(el) el.remove(); return; }
+  const i = ui.tut.step;
+  const s = TUT_STEPS[i];
+  const last = i === TUT_STEPS.length-1;
+  const dots = TUT_STEPS.map((_,k)=>`<span class="${k===i?'on':''}"></span>`).join("");
+  const inner = `<div class="tutcard">
+    <div class="tutico">${s.ico}</div>
+    <div class="stepno">${s.no}</div>
+    <h3>${s.t}</h3>
+    <div class="body">${s.b}</div>
+    <div class="tutdots">${dots}</div>
+    <div class="tutbtns">
+      ${i>0?'<button class="btn ghost" onclick="tutPrev()">戻る</button>':''}
+      <button class="btn gold" onclick="tutNext()">${last?'はじめる':'次へ'}</button>
+    </div>
+    <div class="tutskip"><button onclick="tutFinish(false)">スキップして自分で進める</button></div>
+  </div>`;
+  if(!el){ el = document.createElement("div"); el.id = "tut"; document.body.appendChild(el); }
+  el.innerHTML = inner;
+}
+function tutOpen(){ ui.tut = {on:true, step:0}; tutRender(); }
+function tutNext(){
+  if(ui.tut.step < TUT_STEPS.length-1){ ui.tut.step++; tutRender(); }
+  else tutFinish(true);
+}
+function tutPrev(){ if(ui.tut.step>0){ ui.tut.step--; tutRender(); } }
+function tutFinish(goSetup){
+  ui.tut = {on:false, step:0};
+  tutRender();
+  stSet("hacchu:tut","1");
+  if(goSetup && !master.locations.length) go("loc");
 }
 
 load();
