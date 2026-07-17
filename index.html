@@ -3,19 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>発注アプリ</title>
+<title>Porders</title>
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#022F5A">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Porders">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>
+// Service Worker登録（https配信時のみ。Claudeプレビューやfile://ではスキップ）
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+</script>
 <style>
 :root{
-  --sumi:#23211E;
-  --kinari:#F5F3ED;
+  --sumi:#022F5A;   /* Porders navy */
+  --kinari:#F2F5F9;
   --white:#FFFFFF;
-  --gold:#B08A3C;
-  --gold-soft:#F3EBDA;
+  --gold:#0E63AE;   /* accent blue */
+  --gold-soft:#E4EEF7;
   --shu:#C2452F;
   --shu-soft:#F9E8E4;
-  --ink:#2A2822;
-  --muted:#8A8578;
-  --line:#E4E0D6;
+  --ink:#14263C;
+  --muted:#6E8098;
+  --line:#DCE4ED;
   --ok:#3E7A4E;
   --ok-soft:#E6F0E8;
   --radius:10px;
@@ -31,12 +47,12 @@ body{
 
 /* ===== header ===== */
 header{
-  background:var(--sumi);color:#F5F3ED;
+  background:var(--sumi);color:#F2F5F9;
   padding:14px 16px 10px;
   position:sticky;top:0;z-index:20;
 }
 header h1{font-size:1.05rem;font-weight:700;letter-spacing:.14em}
-header .sub{font-size:.68rem;color:#B8B2A2;letter-spacing:.2em;margin-top:2px}
+header .sub{font-size:.68rem;color:#9DB3CE;letter-spacing:.2em;margin-top:2px}
 nav{
   display:flex;gap:4px;overflow-x:auto;
   background:var(--sumi);padding:0 10px 10px;
@@ -45,11 +61,11 @@ nav{
 }
 nav::-webkit-scrollbar{display:none}
 nav button{
-  flex:0 0 auto;border:1px solid #4A463E;background:transparent;color:#CFC9BB;
+  flex:0 0 auto;border:1px solid #2C5786;background:transparent;color:#C2D4E8;
   padding:8px 13px;border-radius:999px;font-size:.8rem;cursor:pointer;white-space:nowrap;
   font-family:inherit;
 }
-nav button.on{background:var(--gold);border-color:var(--gold);color:#1E1B15;font-weight:700}
+nav button.on{background:var(--gold);border-color:var(--gold);color:#FFFFFF;font-weight:700}
 
 main{max-width:760px;margin:0 auto;padding:16px 14px}
 
@@ -64,7 +80,7 @@ main{max-width:760px;margin:0 auto;padding:16px 14px}
 label.f{display:block;font-size:.74rem;color:var(--muted);margin:10px 0 4px;font-weight:600}
 input[type=text],input[type=date],input[type=time],input[type=number],select{
   width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;
-  font-size:16px;font-family:inherit;background:#FDFCFA;color:var(--ink);
+  font-size:16px;font-family:inherit;background:#FBFCFE;color:var(--ink);
 }
 input:focus,select:focus{outline:2px solid var(--gold);outline-offset:0;border-color:var(--gold)}
 .row{display:flex;gap:8px;align-items:flex-end}
@@ -73,9 +89,9 @@ input:focus,select:focus{outline:2px solid var(--gold);outline-offset:0;border-c
 button.btn{
   padding:10px 16px;border-radius:8px;border:none;cursor:pointer;
   font-size:.85rem;font-weight:700;font-family:inherit;
-  background:var(--sumi);color:#F5F3ED;
+  background:var(--sumi);color:#F2F5F9;
 }
-button.btn.gold{background:var(--gold);color:#1E1B15}
+button.btn.gold{background:var(--gold);color:#FFFFFF}
 button.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:500}
 button.btn:active{opacity:.75}
 button.icon{
@@ -95,9 +111,9 @@ button.icon.del{color:var(--shu)}
 .item .meta{font-size:.72rem;color:var(--muted);margin-top:2px;line-height:1.5}
 .tag{
   display:inline-block;font-size:.66rem;padding:2px 7px;border-radius:999px;
-  background:var(--gold-soft);color:#7A5E22;font-weight:700;margin-right:4px;
+  background:var(--gold-soft);color:#0B4D8A;font-weight:700;margin-right:4px;
 }
-.tag.d2{background:var(--sumi);color:#F0EBDD}
+.tag.d2{background:var(--sumi);color:#E8F0F8}
 .tag.shu{background:var(--shu-soft);color:var(--shu)}
 .tag.ok{background:var(--ok-soft);color:var(--ok)}
 
@@ -105,9 +121,9 @@ button.icon.del{color:var(--shu)}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chips button{
   width:40px;height:40px;border-radius:50%;border:1px solid var(--line);
-  background:#FDFCFA;font-size:.85rem;cursor:pointer;font-family:inherit;color:var(--ink);
+  background:#FBFCFE;font-size:.85rem;cursor:pointer;font-family:inherit;color:var(--ink);
 }
-.chips button.on{background:var(--sumi);color:#F5F3ED;border-color:var(--sumi);font-weight:700}
+.chips button.on{background:var(--sumi);color:#F2F5F9;border-color:var(--sumi);font-weight:700}
 
 /* ===== stock table ===== */
 .stk{width:100%;border-collapse:collapse;font-size:.8rem}
@@ -119,7 +135,7 @@ button.icon.del{color:var(--shu)}
 /* ===== bulk import ===== */
 textarea.paste{
   width:100%;min-height:140px;padding:10px;border:1px dashed var(--gold);
-  border-radius:8px;font-size:16px;font-family:inherit;background:#FDFCFA;color:var(--ink);
+  border-radius:8px;font-size:16px;font-family:inherit;background:#FBFCFE;color:var(--ink);
   resize:vertical;
 }
 textarea.paste:focus{outline:2px solid var(--gold)}
@@ -144,11 +160,11 @@ textarea.paste:focus{outline:2px solid var(--gold)}
   display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;
 }
 .toggle button{
-  padding:9px 12px;border:none;background:#FDFCFA;font-size:.76rem;cursor:pointer;font-family:inherit;color:var(--muted);
+  padding:9px 12px;border:none;background:#FBFCFE;font-size:.76rem;cursor:pointer;font-family:inherit;color:var(--muted);
 }
-.toggle button.on{background:var(--sumi);color:#F5F3ED;font-weight:700}
+.toggle button.on{background:var(--sumi);color:#F2F5F9;font-weight:700}
 .grp-title{
-  font-size:.78rem;font-weight:700;letter-spacing:.08em;color:#6B6455;
+  font-size:.78rem;font-weight:700;letter-spacing:.08em;color:#51677F;
   margin:18px 2px 8px;display:flex;align-items:center;gap:8px;
 }
 .grp-title::after{content:"";flex:1;height:1px;background:var(--line)}
@@ -164,7 +180,7 @@ textarea.paste:focus{outline:2px solid var(--gold)}
 .stepper{display:flex;align-items:center;gap:6px;flex:0 0 auto}
 .stepper button{
   width:42px;height:42px;border-radius:8px;border:1px solid var(--line);
-  background:#FDFCFA;font-size:1.2rem;cursor:pointer;color:var(--ink);font-family:inherit;
+  background:#FBFCFE;font-size:1.2rem;cursor:pointer;color:var(--ink);font-family:inherit;
 }
 .stepper button:active{background:var(--gold-soft)}
 .stepper input{width:64px;text-align:center;font-size:1.05rem;font-weight:700;padding:9px 2px}
@@ -175,7 +191,7 @@ textarea.paste:focus{outline:2px solid var(--gold)}
 }
 .result .qline{display:flex;align-items:baseline;gap:6px}
 .result .q{font-size:1.7rem;font-weight:800;color:var(--ink);line-height:1}
-.result .q.zero{color:#B9B3A4}
+.result .q.zero{color:#A9B7C6}
 .result .q.need{color:var(--gold)}
 .result .u{font-size:.7rem;color:var(--muted)}
 .result .dline{font-size:.7rem;color:var(--muted);margin-top:4px;line-height:1.5}
@@ -191,10 +207,10 @@ textarea.paste:focus{outline:2px solid var(--gold)}
   background:var(--shu-soft);color:var(--shu);border-radius:8px;
   padding:9px 12px;font-size:.76rem;font-weight:600;margin-bottom:10px;line-height:1.6;
 }
-.notice.gold{background:var(--gold-soft);color:#7A5E22}
+.notice.gold{background:var(--gold-soft);color:#0B4D8A}
 .savebar{
-  position:fixed;bottom:0;left:0;right:0;background:rgba(35,33,30,.95);
-  color:#CFC9BB;font-size:.7rem;text-align:center;padding:6px;z-index:30;
+  position:fixed;bottom:0;left:0;right:0;background:rgba(2,47,90,.95);
+  color:#C2D4E8;font-size:.7rem;text-align:center;padding:6px;z-index:30;
   backdrop-filter:blur(4px);letter-spacing:.08em;
 }
 .summary{display:flex;gap:8px;margin-bottom:12px}
@@ -206,8 +222,8 @@ textarea.paste:focus{outline:2px solid var(--gold)}
 </head>
 <body>
 <header>
-  <h1>発注アプリ</h1>
-  <div class="sub">ORDER MANAGEMENT</div>
+  <h1>Porders</h1>
+  <div class="sub">発注管理 ─ ORDER MANAGEMENT</div>
 </header>
 <nav id="nav"></nav>
 <main id="main"></main>
@@ -756,7 +772,7 @@ function vBulkCard(){
       <span style="flex:1;text-align:right;font-size:.72rem;color:var(--muted);align-self:center">選択中 ${onCount}件</span>
     </div>
     <div class="applypanel">
-      <div style="font-size:.72rem;font-weight:700;color:#7A5E22;margin-bottom:6px">チェックした行にまとめて適用（「変更しない」の項目はそのまま）</div>
+      <div style="font-size:.72rem;font-weight:700;color:#0B4D8A;margin-bottom:6px">チェックした行にまとめて適用（「変更しない」の項目はそのまま）</div>
       <div class="row">
         <select id="baLoc"><option value="">保管場所：変更しない</option>${locOpts(null)}</select>
         <select id="baVen"><option value="">業者：変更しない</option>${venOpts(null)}</select>
@@ -1112,7 +1128,7 @@ function vBackup(){
   </div>
   <div class="card">
     <h2>ファイルから復元</h2>
-    <input type="file" id="impFile" accept=".json,application/json" style="padding:8px;background:#FDFCFA;border:1px dashed var(--line);border-radius:8px">
+    <input type="file" id="impFile" accept=".json,application/json" style="padding:8px;background:#FBFCFE;border:1px dashed var(--line);border-radius:8px">
     <div style="margin-top:12px"><button class="btn" onclick="impData()">読み込んで上書き</button></div>
     <div class="hint" style="color:var(--shu)">※現在のマスタ設定は読み込んだ内容で上書きされます。念のため先に「マスタのみ保存」でバックアップを取ってから実行してください。</div>
   </div>`;
@@ -1126,7 +1142,7 @@ function expData(withSheets){
   const blob = new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = (withSheets?"発注マスタ＋履歴_":"発注マスタ_") + todayStr() + ".json";
+  a.download = (withSheets?"Porders_マスタ＋履歴_":"Porders_マスタ_") + todayStr() + ".json";
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
   setBar("ダウンロードしました ✓");
@@ -1143,7 +1159,7 @@ function impData(){
     catch(e){ alert("読み込み失敗：JSONファイルではありません"); return; }
     const m = data.master || (data.locations ? data : null); // 素のmaster形式も許容
     if(!m || !Array.isArray(m.locations) || !Array.isArray(m.vendors) || !Array.isArray(m.products)){
-      alert("読み込み失敗：発注アプリのマスタファイルではありません"); return;
+      alert("読み込み失敗：Pordersのマスタファイルではありません"); return;
     }
     const msg = `以下の内容で上書きします。よろしいですか？\n\n保管場所 ${m.locations.length}件\n業者 ${m.vendors.length}件\n商品 ${m.products.length}件\n繁忙期間 ${(m.busyPeriods||[]).length}件`
       + (data.sheets ? `\n発注履歴 ${Object.keys(data.sheets).length}日分` : "");
